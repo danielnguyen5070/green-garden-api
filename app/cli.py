@@ -19,6 +19,12 @@ def _prompt_password() -> str:
         raise SystemExit("Password is required.")
     if password != confirm:
         raise SystemExit("Passwords do not match.")
+    try:
+        from app.core.security import validate_password_strength
+
+        validate_password_strength(password)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     return password
 
 

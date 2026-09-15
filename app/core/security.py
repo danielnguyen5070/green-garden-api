@@ -34,6 +34,20 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
+def validate_password_strength(password: str) -> None:
+    """
+    Enforce reasonable password rules for admin accounts.
+
+    Raises ValueError with a clear message when the password is too weak.
+    """
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters")
+    if not any(char.isalpha() for char in password):
+        raise ValueError("Password must contain at least one letter")
+    if not any(char.isdigit() for char in password):
+        raise ValueError("Password must contain at least one digit")
+
+
 def create_token(
     *,
     subject: uuid.UUID,

@@ -1,8 +1,7 @@
-from uuid import UUID
-
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.core.security import normalize_email
+from app.schemas.admin import AdminResponse
 
 
 class AdminLoginRequest(BaseModel):
@@ -15,14 +14,6 @@ class AdminLoginRequest(BaseModel):
         if isinstance(value, str):
             return normalize_email(value)
         return value
-
-
-class AdminResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    name: str
-    email: str
 
 
 class AuthResponse(BaseModel):

@@ -14,9 +14,9 @@ from app.core.database import get_db
 from app.core.security import create_token
 from app.dependencies.auth import get_current_admin
 from app.models.admin import Admin
+from app.schemas.admin import AdminResponse
 from app.schemas.auth import (
     AdminLoginRequest,
-    AdminResponse,
     AuthResponse,
     MessageResponse,
 )

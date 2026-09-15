@@ -2,7 +2,7 @@
 
 FastAPI backend for the Green Garden storefront and admin panel.
 
-Current scope: **database schema** + **admin authentication API**.
+Current scope: **database schema** + **admin authentication** + **admin management API**.
 
 ## Requirements
 
@@ -35,6 +35,8 @@ docker compose exec -it api python -m app.cli create-admin
 
 You will be prompted for name, email, and password (password is hashed with Argon2id and never printed).
 
+After the first admin exists, additional admins can be created from the Admin Dashboard via `POST /api/v1/admins`.
+
 ## Admin authentication
 
 | Method | Path | Notes |
@@ -56,6 +58,29 @@ curl -c cookies.txt -X POST http://localhost:8000/api/v1/auth/login \
   -d '{"email":"admin@greengarden.vn","password":"your-password"}'
 
 curl -b cookies.txt http://localhost:8000/api/v1/auth/me
+```
+
+## Admin management
+
+All endpoints require an authenticated admin (access cookie). Every active admin has the same permissions — there is no role/permission system.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/admins` | Paginated list (`?page=1&page_size=20`) |
+| GET | `/api/v1/admins/{id}` | Single admin |
+| POST | `/api/v1/admins` | Create admin (`is_active=true`) |
+| PATCH | `/api/v1/admins/{id}` | Update name / email / is_active |
+| PATCH | `/api/v1/admins/{id}/status` | Activate / deactivate |
+| PATCH | `/api/v1/admins/{id}/password` | Set a new password (Argon2id) |
+
+Responses never include `password`, `password_hash`, or JWT tokens. Duplicate emails return `409 Conflict`. An admin cannot deactivate their own account.
+
+### Example: create admin
+
+```bash
+curl -b cookies.txt -X POST http://localhost:8000/api/v1/admins \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Nguyen Van A","email":"admin2@example.com","password":"StrongPassword123!"}'
 ```
 
 ## Environment variables
@@ -90,7 +115,7 @@ Do **not** use SQLAlchemy `create_all()` for production schema management.
 docker compose exec api pytest
 ```
 
-Auth tests run against `TEST_DATABASE_URL` (`green_garden_test`), not the primary app database.
+Auth and admin tests run against `TEST_DATABASE_URL` (`green_garden_test`), not the primary app database.
 
 ## Project layout
 
@@ -99,11 +124,14 @@ app/
   main.py
   cli.py                 # python -m app.cli create-admin
   api/v1/auth.py         # Auth routes
+  api/v1/admins.py       # Admin management routes
   core/security.py       # Argon2id + JWT
   core/cookies.py        # HttpOnly cookie helpers
   dependencies/auth.py   # get_current_admin()
   schemas/auth.py
+  schemas/admin.py
   services/auth_service.py
+  services/admin_service.py
   models/
 ```
 

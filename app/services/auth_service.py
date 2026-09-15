@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import (
     create_token,
     decode_token,
-    hash_password,
     normalize_email,
     verify_password,
 )
@@ -90,19 +89,15 @@ async def create_admin(
     email: str,
     password: str,
 ) -> Admin:
-    """Create an admin with a hashed password (CLI / bootstrap only)."""
-    normalized = normalize_email(email)
-    existing = await get_admin_by_email(session, normalized)
-    if existing is not None:
-        raise ValueError(f"Admin with email '{normalized}' already exists")
+    """Create an admin with a hashed password (CLI / bootstrap)."""
+    from app.services.admin_service import EmailConflictError, create_admin_account
 
-    admin = Admin(
-        name=name.strip(),
-        email=normalized,
-        password_hash=hash_password(password),
-        is_active=True,
-    )
-    session.add(admin)
-    await session.commit()
-    await session.refresh(admin)
-    return admin
+    try:
+        return await create_admin_account(
+            session,
+            name=name,
+            email=email,
+            password=password,
+        )
+    except EmailConflictError as exc:
+        raise ValueError(str(exc)) from exc
