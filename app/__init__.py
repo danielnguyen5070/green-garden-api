@@ -1,0 +1,1 @@
+"""Green Garden API package."""
