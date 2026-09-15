@@ -1,147 +1,116 @@
 # Green Garden API
 
-Backend foundation for the Green Garden storefront (FastAPI + PostgreSQL).
+FastAPI backend for the Green Garden storefront and admin panel.
 
-This repository currently provides **infrastructure and database schema only**.
-Business API endpoints, admin UI, storefront, and blog are out of scope for this stage.
+Current scope: **database schema** + **admin authentication API**.
 
 ## Requirements
 
 - Docker and Docker Compose
-- Python 3.12+ (only needed for local tooling outside Docker)
+- Python 3.12+ (only for host-side tooling if needed)
 
 PostgreSQL runs **inside Docker** — it is not required on the host.
 
-## Project layout
-
-```
-app/
-  main.py              # FastAPI app + GET /health
-  core/
-    config.py          # Pydantic Settings from env
-    database.py        # Async SQLAlchemy engine + session dependency
-  models/              # SQLAlchemy 2.x ORM models (one file per entity)
-migrations/            # Alembic migrations
-tests/                 # Basic model / constraint tests
-Dockerfile
-docker-compose.yml
-alembic.ini
-requirements.txt
-```
-
-Future layers (`api/`, `schemas/`, `services/`) can be added when implementing endpoints.
-
-## Environment variables
-
-Copy the example file and edit secrets:
+## Quick start
 
 ```bash
 cp .env.example .env
+# Set a strong JWT_SECRET_KEY in .env for any shared environment
+
+docker compose up --build
+docker compose exec api alembic upgrade head
 ```
+
+- Health: http://localhost:8000/health
+- OpenAPI: http://localhost:8000/docs
+- Postgres host port: `${POSTGRES_PORT}` (default `5432`; use `5433` if busy)
+
+## Create the first admin
+
+There is **no** public registration endpoint. Bootstrap via CLI:
+
+```bash
+docker compose exec -it api python -m app.cli create-admin
+```
+
+You will be prompted for name, email, and password (password is hashed with Argon2id and never printed).
+
+## Admin authentication
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/v1/auth/login` | Sets HttpOnly `gg_access_token` + `gg_refresh_token` cookies |
+| POST | `/api/v1/auth/logout` | Clears auth cookies (no valid token required) |
+| GET | `/api/v1/auth/me` | Requires access cookie |
+| POST | `/api/v1/auth/refresh` | Issues a new access cookie from refresh cookie |
+
+Tokens are **never** returned in JSON. Frontends must use `credentials: "include"` and must not store tokens in localStorage/sessionStorage.
+
+TODO (production): rate-limit `POST /api/v1/auth/login`.
+
+### Example login
+
+```bash
+curl -c cookies.txt -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@greengarden.vn","password":"your-password"}'
+
+curl -b cookies.txt http://localhost:8000/api/v1/auth/me
+```
+
+## Environment variables
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | SQLAlchemy async URL (`postgresql+psycopg://...`) |
-| `POSTGRES_DB` | PostgreSQL database name |
-| `POSTGRES_USER` | PostgreSQL user |
-| `POSTGRES_PASSWORD` | PostgreSQL password |
-| `POSTGRES_PORT` | Host port mapped to container `5432` (change if `5432` is already in use) |
+| `DATABASE_URL` | SQLAlchemy async URL |
+| `TEST_DATABASE_URL` | Separate DB for pytest |
+| `POSTGRES_*` | Docker Postgres settings |
+| `JWT_SECRET_KEY` | Signing secret (required) |
+| `JWT_ALGORITHM` | Default `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access JWT lifetime |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh JWT lifetime |
+| `AUTH_COOKIE_SECURE` | `true` in production (HTTPS) |
+| `AUTH_COOKIE_SAMESITE` | `lax` / `strict` / `none` |
+| `CORS_ORIGINS` | Comma-separated Next.js origins |
 
-Do not commit `.env`.
+Do not commit `.env`. Never use `allow_origins=["*"]` with cookie credentials.
 
-## Docker setup
-
-Start PostgreSQL and the FastAPI app:
-
-```bash
-docker compose up --build
-```
-
-- API: http://localhost:8000
-- Health: http://localhost:8000/health
-- Postgres: `localhost:${POSTGRES_PORT}` (credentials from `.env`)
-
-The API waits until Postgres is **healthy** (`pg_isready`), not merely started.
-Postgres data is stored in the named volume `postgres_data` and survives restarts.
-
-## Running migrations
-
-Apply all migrations (from the host with env loaded, or inside the API container):
+## Migrations
 
 ```bash
-# Inside the running API container
 docker compose exec api alembic upgrade head
-```
-
-Or with a local venv pointing at Docker Postgres (set `DATABASE_URL` host to `localhost`):
-
-```bash
-alembic upgrade head
-```
-
-Verify downgrade of the initial revision:
-
-```bash
-docker compose exec api alembic downgrade -1
-docker compose exec api alembic upgrade head
-```
-
-### Creating a new migration
-
-After changing models:
-
-```bash
 docker compose exec api alembic revision --autogenerate -m "describe_change"
-docker compose exec api alembic upgrade head
 ```
 
-**Do not** use SQLAlchemy `create_all()` for production schema management.
+Do **not** use SQLAlchemy `create_all()` for production schema management.
 
-## Running tests
-
-With Compose services running and migrations applied:
+## Tests
 
 ```bash
 docker compose exec api pytest
 ```
 
-Tests cover connection, relationships, uniqueness, and check constraints
-(negative prices, invalid quantities).
+Auth tests run against `TEST_DATABASE_URL` (`green_garden_test`), not the primary app database.
+
+## Project layout
+
+```
+app/
+  main.py
+  cli.py                 # python -m app.cli create-admin
+  api/v1/auth.py         # Auth routes
+  core/security.py       # Argon2id + JWT
+  core/cookies.py        # HttpOnly cookie helpers
+  dependencies/auth.py   # get_current_admin()
+  schemas/auth.py
+  services/auth_service.py
+  models/
+```
 
 ## Database architecture
 
-UUID primary keys (`gen_random_uuid()`), timezone-aware timestamps, `NUMERIC(12,2)` for money.
+UUID PKs, timezone-aware timestamps, `NUMERIC(12,2)` for money.
 
-### Tables
+Tables: `admins`, `categories`, `plants`, `plant_images`, `plant_pot_sizes`, `customers`, `orders`, `order_items`.
 
-| Table | Notes |
-|---|---|
-| `admins` | Admin users; stores `password_hash` only (no auth yet) |
-| `categories` | Soft-deactivated via `is_active` |
-| `plants` | Belongs to category; price/stock constraints |
-| `plant_images` | External media URLs (`image` / `video`); no binary blobs |
-| `plant_pot_sizes` | Size variants with non-negative `price_adjustment` |
-| `customers` | Identified by unique `phone` (no accounts) |
-| `orders` | `shipping_address` as TEXT; status enum |
-| `order_items` | Snapshots of `plant_name`, `unit_price`, `pot_size` |
-
-### Relationships
-
-```
-categories 1──N plants 1──N plant_images
-                   └──N plant_pot_sizes
-
-customers 1──N orders 1──N order_items N──1 plants
-```
-
-### Delete behavior
-
-- Prefer soft deactivation (`is_active`) for admins, categories, plants, customers.
-- `orders.customer_id` and `order_items.plant_id` use `ON DELETE RESTRICT` so historical order data is not wiped by deleting customers or plants.
-- `plant_images` / `plant_pot_sizes` cascade when a plant row is removed (non-historical).
-
-### Order status
-
-`pending` → `confirmed` → `processing` → `shipping` → `completed` (or `cancelled`)
-
-No payment tables in this schema.
+Customers have **no** login — identified by unique phone only.

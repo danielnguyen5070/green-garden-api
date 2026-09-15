@@ -5,7 +5,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class Admin(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """Admin users who can access /admin. Auth is implemented later."""
+    """Admin users who can access /admin (JWT cookie auth)."""
 
     __tablename__ = "admins"
 
