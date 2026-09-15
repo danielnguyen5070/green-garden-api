@@ -1,0 +1,35 @@
+---
+description: Git commit message convention
+alwaysApply: true
+---
+
+# Commit Convention
+
+Use Conventional Commits.
+
+Format:
+`<type>(<scope>): <description>`
+
+Types:
+- feat: new feature
+- fix: bug fix
+- refactor: code restructuring
+- style: styling/formatting
+- docs: documentation
+- test: tests
+- chore: maintenance
+
+Rules:
+- Commit message MUST be one line.
+- Keep it short and clear.
+- Use imperative mood.
+- Do not end with a period.
+- Inspect the changes before choosing the type.
+- Prefer a scope when relevant.
+
+Examples:
+feat(product): add product search
+fix(cart): fix quantity calculation
+refactor(ui): extract button component
+style(header): update navigation styles
+chore: update dependencies
