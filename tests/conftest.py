@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import get_settings
 from app.core.security import hash_password, normalize_email
 from app.models.admin import Admin
+from app.models.category import Category
 
 
 def _admin_url_for_maintenance(database_url: str) -> str:
@@ -176,6 +177,21 @@ async def active_admin(test_db_session: AsyncSession) -> Admin:
     await test_db_session.commit()
     await test_db_session.refresh(admin)
     return admin
+
+
+@pytest_asyncio.fixture
+async def test_category(test_db_session: AsyncSession) -> Category:
+    """Category used as a foreign key target by plant tests."""
+    unique = uuid4().hex[:8]
+    category = Category(
+        name=f"Test Category {unique}",
+        slug=f"test-category-{unique}",
+        is_active=True,
+    )
+    test_db_session.add(category)
+    await test_db_session.commit()
+    await test_db_session.refresh(category)
+    return category
 
 
 @pytest_asyncio.fixture

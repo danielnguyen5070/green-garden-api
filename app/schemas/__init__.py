@@ -13,6 +13,38 @@ from app.schemas.auth import (
     AuthResponse,
     MessageResponse,
 )
+from app.schemas.category import (
+    CategoryCreate,
+    CategoryListItem,
+    CategoryListResponse,
+    CategoryResponse,
+    CategoryStatusUpdate,
+    CategorySummary,
+    CategoryUpdate,
+    PublicCategoryListItem,
+    PublicCategoryListResponse,
+)
+from app.schemas.plant import (
+    PlantCreate,
+    PlantListItem,
+    PlantListResponse,
+    PlantResponse,
+    PlantStatusUpdate,
+    PlantUpdate,
+    PublicPlantDetail,
+    PublicPlantListItem,
+    PublicPlantListResponse,
+)
+from app.schemas.plant_image import (
+    PlantImageCreate,
+    PlantImageResponse,
+    PlantImageUpdate,
+)
+from app.schemas.plant_pot_size import (
+    PlantPotSizeCreate,
+    PlantPotSizeResponse,
+    PlantPotSizeUpdate,
+)
 
 __all__ = [
     "AdminCreate",
@@ -23,5 +55,29 @@ __all__ = [
     "AdminStatusUpdate",
     "AdminUpdate",
     "AuthResponse",
+    "CategoryCreate",
+    "CategoryListItem",
+    "CategoryListResponse",
+    "CategoryResponse",
+    "CategoryStatusUpdate",
+    "CategorySummary",
+    "CategoryUpdate",
     "MessageResponse",
+    "PlantCreate",
+    "PlantImageCreate",
+    "PlantImageResponse",
+    "PlantImageUpdate",
+    "PlantListItem",
+    "PlantListResponse",
+    "PlantPotSizeCreate",
+    "PlantPotSizeResponse",
+    "PlantPotSizeUpdate",
+    "PlantResponse",
+    "PlantStatusUpdate",
+    "PlantUpdate",
+    "PublicCategoryListItem",
+    "PublicCategoryListResponse",
+    "PublicPlantDetail",
+    "PublicPlantListItem",
+    "PublicPlantListResponse",
 ]

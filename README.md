@@ -2,7 +2,9 @@
 
 FastAPI backend for the Green Garden storefront and admin panel.
 
-Current scope: **database schema** + **admin authentication** + **admin management API**.
+Current scope: **database schema** + **admin authentication** + **admin management API** + **categories management API** + **plants management API** + **public storefront catalogue**.
+
+Full endpoint reference: [`doc.md`](doc.md).
 
 ## Requirements
 
@@ -83,6 +85,70 @@ curl -b cookies.txt -X POST http://localhost:8000/api/v1/admins \
   -d '{"name":"Nguyen Van A","email":"admin2@example.com","password":"StrongPassword123!"}'
 ```
 
+## Categories management
+
+Admin-only (access cookie). Categories are never hard-deleted — deactivate them instead, which keeps existing plants and order history intact.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/categories` | Pagination + `search` (name/slug) and `is_active` |
+| GET | `/api/v1/categories/{category_id}` | Detail, active or inactive |
+| POST | `/api/v1/categories` | `name` + `slug` required; slug normalized and unique |
+| PATCH | `/api/v1/categories/{category_id}` | Partial update |
+| PATCH | `/api/v1/categories/{category_id}/status` | Activate / deactivate |
+
+Listings are ordered by `sort_order ASC`, then `created_at ASC`. Duplicate slug returns `409 Conflict`.
+
+### Example: create category
+
+```bash
+curl -b cookies.txt -X POST http://localhost:8000/api/v1/categories \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Indoor Plants","slug":"indoor-plants","sort_order":1}'
+```
+
+## Plants management
+
+Admin-only (access cookie). Plants are never hard-deleted — deactivate them instead.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/plants` | Pagination + `search`, `category_id`, `is_active`, `is_featured`, `min_price`, `max_price`, `sort`, `order` |
+| GET | `/api/v1/plants/{plant_id}` | Detail with category, images and pot sizes |
+| POST | `/api/v1/plants` | Validates category, unique slug and SKU |
+| PATCH | `/api/v1/plants/{plant_id}` | Partial update |
+| PATCH | `/api/v1/plants/{plant_id}/status` | Activate / deactivate |
+| GET/POST | `/api/v1/plants/{plant_id}/images` | External media URLs (`image` / `video`) |
+| PATCH/DELETE | `/api/v1/plants/{plant_id}/images/{image_id}` | Image must belong to the plant |
+| GET/POST | `/api/v1/plants/{plant_id}/pot-sizes` | Pot size variants |
+| PATCH/DELETE | `/api/v1/plants/{plant_id}/pot-sizes/{size_id}` | Pot size must belong to the plant |
+
+Duplicate slug or SKU returns `409 Conflict`; an unknown category returns `404 Not Found`. Money uses `Decimal` / `NUMERIC(12,2)` and is serialized as a string.
+
+### Example: create plant
+
+```bash
+curl -b cookies.txt -X POST http://localhost:8000/api/v1/plants \
+  -H "Content-Type: application/json" \
+  -d '{"category_id":"<category-uuid>","name":"Monstera Deliciosa","slug":"monstera-deliciosa","price":250000,"stock":20,"sku":"MON-001"}'
+```
+
+## Public storefront
+
+No authentication. Only active records are exposed, and admin fields (`sku`, `stock`, `is_active`, timestamps) are omitted.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/storefront/categories` | Active categories for navigation |
+| GET | `/api/v1/storefront/plants` | Active catalogue with the same filters (minus `is_active`) |
+| GET | `/api/v1/storefront/plants/{slug}` | Detail by slug; active pot sizes only |
+
+Admin detail uses UUIDs (`/api/v1/plants/{plant_id}`) and the storefront uses slugs, so the two never collide on one route.
+
+```bash
+curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
+```
+
 ## Environment variables
 
 | Variable | Purpose |
@@ -125,13 +191,23 @@ app/
   cli.py                 # python -m app.cli create-admin
   api/v1/auth.py         # Auth routes
   api/v1/admins.py       # Admin management routes
+  api/v1/categories.py   # Categories (admin)
+  api/v1/plants.py       # Plants / images / pot sizes (admin)
+  api/v1/storefront.py   # Public catalogue routes
   core/security.py       # Argon2id + JWT
   core/cookies.py        # HttpOnly cookie helpers
+  core/text.py           # Slug / SKU normalization
   dependencies/auth.py   # get_current_admin()
   schemas/auth.py
   schemas/admin.py
+  schemas/category.py
+  schemas/plant.py
+  schemas/plant_image.py
+  schemas/plant_pot_size.py
   services/auth_service.py
   services/admin_service.py
+  services/category_service.py
+  services/plant_service.py
   models/
 ```
 

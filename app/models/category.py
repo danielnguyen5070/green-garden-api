@@ -18,6 +18,8 @@ class Category(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __table_args__ = (
         Index("ix_categories_name", "name"),
         Index("ix_categories_is_active", "is_active"),
+        # Default listing order is sort_order ASC, created_at ASC
+        Index("ix_categories_sort_order", "sort_order"),
     )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
