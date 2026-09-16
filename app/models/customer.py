@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, String
+from sqlalchemy import Boolean, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -15,6 +15,10 @@ class Customer(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """Guest customer identified by phone number (no accounts / login)."""
 
     __tablename__ = "customers"
+    __table_args__ = (
+        Index("ix_customers_name", "name"),
+        Index("ix_customers_is_active", "is_active"),
+    )
 
     phone: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)

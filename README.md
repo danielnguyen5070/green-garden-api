@@ -2,7 +2,7 @@
 
 FastAPI backend for the Green Garden storefront and admin panel.
 
-Current scope: **database schema** + **admin authentication** + **admin management API** + **categories management API** + **plants management API** + **public storefront catalogue**.
+Current scope: **database schema** + **admin authentication** + **admin management API** + **categories management API** + **plants management API** + **customers management API** + **orders management API** + **public storefront catalogue**.
 
 Full endpoint reference: [`doc.md`](doc.md).
 
@@ -137,6 +137,55 @@ curl -b cookies.txt -X POST http://localhost:8000/api/v1/plants \
   -d '{"category_id":"<category-uuid>","name":"Monstera Deliciosa","name_vi":"Cây Trầu Bà Nam Mỹ","slug":"monstera-deliciosa","price":25,"price_vi":650000,"stock":20,"sku":"MON-001"}'
 ```
 
+## Customers management
+
+Admin-only (access cookie). Customers are guests: no password, no login, no customer-facing endpoints — the unique phone number is their identity. They are never hard-deleted; deactivate them instead, which keeps their order history intact.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/customers` | Pagination + `search` (phone/name/email) and `is_active` |
+| GET | `/api/v1/customers/{customer_id}` | Detail, active or inactive |
+| POST | `/api/v1/customers` | `phone` + `name` required; duplicate phone returns `409` |
+| PATCH | `/api/v1/customers/{customer_id}` | Update phone / name / email |
+| PATCH | `/api/v1/customers/{customer_id}/status` | Activate / deactivate |
+
+Phone numbers are stored without spaces, so `090 123 4567` and `0901234567` are the same customer. An inactive customer cannot place new orders.
+
+### Example: create customer
+
+```bash
+curl -b cookies.txt -X POST http://localhost:8000/api/v1/customers \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"0901234567","name":"Nguyen Van A","email":"customer@example.com"}'
+```
+
+## Orders management
+
+Admin-only (access cookie). Orders are historical business records: there is no `DELETE` and no way to edit their contents — only `status` moves forward, or the order is cancelled.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/orders` | Pagination + `search` (order number / customer phone / name), `status`, `customer_id`, `date_from`, `date_to` |
+| GET | `/api/v1/orders/{order_id}` | Detail with customer and item snapshots |
+| POST | `/api/v1/orders` | Resolves the customer by phone, prices the order, deducts stock |
+| PATCH | `/api/v1/orders/{order_id}/status` | Advance the pipeline or cancel |
+
+Key rules:
+
+- **The backend owns the money.** `unit_price = plant.price + pot_size.price_adjustment` and `total_amount = sum(unit_price × quantity)`, all in `Decimal` / `NUMERIC(12,2)`. Prices or totals sent by the client are ignored.
+- **Items are snapshots.** `plant_name`, `unit_price` and `pot_size` are copied at purchase time, so renaming, repricing, deactivating or retiring a plant never rewrites an existing order.
+- **One transaction.** Customer upsert, order, items and stock deduction commit together, with the plant rows locked so concurrent checkouts cannot oversell. Insufficient stock returns `400` and writes nothing.
+- **Customers by phone.** A known phone reuses the existing customer (their stored name is preserved); an unknown phone creates one.
+- **Status pipeline.** `pending → confirmed → processing → shipping → completed`, forward-only, cancellable from any non-terminal status. Cancelling restores stock exactly once; `completed` and `cancelled` are final.
+
+### Example: create order
+
+```bash
+curl -b cookies.txt -X POST http://localhost:8000/api/v1/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customer":{"phone":"0901234567","name":"Nguyen Van A"},"shipping_address":"123 Nguyen Trai, District 1, HCMC","items":[{"plant_id":"<plant-uuid>","quantity":2,"pot_size":"Large"}]}'
+```
+
 ## Public storefront
 
 No authentication. Only active records are exposed, and admin fields (`sku`, `stock`, `is_active`, timestamps) are omitted.
@@ -197,10 +246,12 @@ app/
   api/v1/admins.py       # Admin management routes
   api/v1/categories.py   # Categories (admin)
   api/v1/plants.py       # Plants / images / pot sizes (admin)
+  api/v1/customers.py    # Customers (admin)
+  api/v1/orders.py       # Orders (admin)
   api/v1/storefront.py   # Public catalogue routes
   core/security.py       # Argon2id + JWT
   core/cookies.py        # HttpOnly cookie helpers
-  core/text.py           # Slug / SKU normalization
+  core/text.py           # Slug / SKU / phone normalization
   dependencies/auth.py   # get_current_admin()
   schemas/auth.py
   schemas/admin.py
@@ -208,10 +259,14 @@ app/
   schemas/plant.py
   schemas/plant_image.py
   schemas/plant_pot_size.py
+  schemas/customer.py
+  schemas/order.py
   services/auth_service.py
   services/admin_service.py
   services/category_service.py
   services/plant_service.py
+  services/customer_service.py
+  services/order_service.py
   models/
 ```
 
@@ -222,3 +277,7 @@ UUID PKs, timezone-aware timestamps, `NUMERIC(12,2)` for money.
 Tables: `admins`, `categories`, `plants`, `plant_images`, `plant_pot_sizes`, `customers`, `orders`, `order_items`.
 
 Customers have **no** login — identified by unique phone only.
+
+Orders keep their shipping address and their line items (`plant_name`, `unit_price`, `pot_size`) as snapshots, so there is no separate address table and no dependency on the current catalogue. There is no payment table.
+
+Indexes: `customers.phone` (unique), `customers.name`, `customers.is_active`, `orders.order_number` (unique), `orders.customer_id`, `orders.status`, `orders.created_at`, `order_items.order_id`, `order_items.plant_id`.

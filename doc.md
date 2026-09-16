@@ -17,6 +17,8 @@ API prefix for versioned routes: `/api/v1`
 | Admin management | `/api/v1/admins/*` | Admin |
 | Categories management | `/api/v1/categories/*` | Admin |
 | Plants management | `/api/v1/plants/*` | Admin |
+| Customers management | `/api/v1/customers/*` | Admin |
+| Orders management | `/api/v1/orders/*` | Admin |
 | Public storefront | `/api/v1/storefront/*` | Public |
 
 There is **no** public registration. Bootstrap the first admin with:
@@ -1057,6 +1059,404 @@ curl -b cookies.txt -X POST http://localhost:8000/api/v1/plants/3fa85f64-5717-45
 
 ---
 
+## Customers management API
+
+Base path: `/api/v1/customers`
+
+All customer endpoints require an authenticated **active** admin (access cookie). Customers are **guests**: they have no password, no login and no endpoints of their own — the phone number is their identity.
+
+There is **no** `DELETE /api/v1/customers/{id}`. Retire a customer with `PATCH /api/v1/customers/{id}/status`, which keeps the customer row and their whole order history intact.
+
+### CustomerResponse
+
+```json
+{
+  "id": "b7f4c1d2-9e3a-4b58-8c17-5d2e6f7a8b90",
+  "phone": "0901234567",
+  "name": "Nguyen Van A",
+  "email": "customer@example.com",
+  "is_active": true,
+  "created_at": "2026-09-16T09:00:00Z",
+  "updated_at": "2026-09-16T09:00:00Z"
+}
+```
+
+### Field rules
+
+| Field | Type | Rules |
+|---|---|---|
+| `phone` | string | Required, unique, max 32 chars. Spaces are stripped (`090 123 4567` → `0901234567`), so the same number cannot be stored twice. Must be at least 6 digits and may only contain digits with an optional leading `+` and `()`, `-`, `.` separators |
+| `name` | string | Required, trimmed, max 255 |
+| `email` | email \| null | Optional, validated and normalized (trimmed + lowercase) |
+| `is_active` | boolean | Defaults `true`; inactive customers cannot place new orders |
+
+---
+
+### `GET /api/v1/customers`
+
+Paginated admin listing, ordered by `created_at` descending. Includes inactive customers.
+
+**Auth:** required
+
+**Query params**
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `page` | integer | `1` | `>= 1` |
+| `page_size` | integer | `20` | `1..100` |
+| `search` | string | — | Matches `phone`, `name` or `email` (case-insensitive) |
+| `is_active` | boolean | — | Omit to return both active and inactive |
+
+**Response `200`**
+
+```json
+{
+  "items": [
+    {
+      "id": "b7f4c1d2-9e3a-4b58-8c17-5d2e6f7a8b90",
+      "phone": "0901234567",
+      "name": "Nguyen Van A",
+      "email": "customer@example.com",
+      "is_active": true,
+      "created_at": "2026-09-16T09:00:00Z",
+      "updated_at": "2026-09-16T09:00:00Z"
+    }
+  ],
+  "page": 1,
+  "page_size": 20,
+  "total": 1
+}
+```
+
+**Errors:** `401`, `422`
+
+```bash
+curl -b cookies.txt "http://localhost:8000/api/v1/customers?page=1&page_size=20&search=0901&is_active=true"
+```
+
+---
+
+### `GET /api/v1/customers/{customer_id}`
+
+**Auth:** required
+
+**Response `200`** — `CustomerResponse` (active or inactive)
+
+**Errors:** `401`, `404`, `422`
+
+---
+
+### `POST /api/v1/customers`
+
+**Auth:** required
+
+**Request body**
+
+```json
+{
+  "phone": "0901234567",
+  "name": "Nguyen Van A",
+  "email": "customer@example.com"
+}
+```
+
+Only `phone` and `name` are required. `is_active` is always `true` on creation.
+
+**Response `201`** — `CustomerResponse`
+
+**Errors**
+
+| Status | When |
+|---|---|
+| `401` | Not authenticated |
+| `409` | Phone already used by another customer |
+| `422` | Missing/empty/unusable phone, empty name, invalid email |
+
+```bash
+curl -b cookies.txt -X POST http://localhost:8000/api/v1/customers \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"0901234567","name":"Nguyen Van A","email":"customer@example.com"}'
+```
+
+---
+
+### `PATCH /api/v1/customers/{customer_id}`
+
+Partial update of `phone`, `name` and `email`. Changing the phone re-checks uniqueness. Sending `"email": null` clears the email; omitted fields keep their stored values.
+
+`id`, `created_at`, `updated_at` and order history are never writable — unknown fields in the body are ignored.
+
+**Auth:** required
+
+**Request body**
+
+```json
+{
+  "name": "Nguyen Van B",
+  "email": "new@example.com"
+}
+```
+
+**Response `200`** — `CustomerResponse`
+
+**Errors:** `401`, `404`, `409` (phone), `422`
+
+---
+
+### `PATCH /api/v1/customers/{customer_id}/status`
+
+**Auth:** required
+
+**Request body**
+
+```json
+{
+  "is_active": false
+}
+```
+
+Soft deactivation only: no data is deleted, historical orders stay exactly as they were, and the customer keeps their phone number. An inactive customer cannot be used for a **new** order (`400`).
+
+**Response `200`** — `CustomerResponse`
+
+**Errors:** `401`, `404`, `422`
+
+```bash
+curl -b cookies.txt -X PATCH http://localhost:8000/api/v1/customers/b7f4c1d2-9e3a-4b58-8c17-5d2e6f7a8b90/status \
+  -H "Content-Type: application/json" \
+  -d '{"is_active":false}'
+```
+
+---
+
+## Orders management API
+
+Base path: `/api/v1/orders`
+
+All order endpoints require an authenticated **active** admin (access cookie).
+
+Orders are historical business records, so there is **no** `DELETE /api/v1/orders/{id}` and no way to edit an order's contents — only its `status` moves. Order items are **snapshots**: `plant_name` and `unit_price` are copied when the order is created and never recalculated from the plant afterwards.
+
+There is no payment API or payment table: money handling stops at `total_amount`.
+
+### OrderResponse
+
+List rows and the detail response share the same shape.
+
+```json
+{
+  "id": "1c9d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
+  "order_number": "GG-20260916-0001",
+  "status": "pending",
+  "total_amount": "800000.00",
+  "shipping_address": "123 Nguyen Trai, District 1, HCMC",
+  "note": "Please call before delivery",
+  "customer": {
+    "id": "b7f4c1d2-9e3a-4b58-8c17-5d2e6f7a8b90",
+    "name": "Nguyen Van A",
+    "phone": "0901234567",
+    "email": "customer@example.com"
+  },
+  "items": [
+    {
+      "id": "5f4e3d2c-1b0a-9f8e-7d6c-5b4a39281706",
+      "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "plant_name": "Monstera Deliciosa",
+      "quantity": 2,
+      "unit_price": "400000.00",
+      "pot_size": "Large"
+    }
+  ],
+  "created_at": "2026-09-16T09:00:00Z",
+  "updated_at": "2026-09-16T09:00:00Z"
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `order_number` | string | Generated as `GG-YYYYMMDD-NNNN` (UTC date + daily sequence), unique |
+| `status` | enum | `pending` \| `confirmed` \| `processing` \| `shipping` \| `completed` \| `cancelled` |
+| `total_amount` | Decimal (string in JSON) | Always calculated by the backend, `NUMERIC(12,2)` |
+| `shipping_address` | string | Snapshot text on the order — there is no address table |
+| `customer` | object | `id`, `name`, `phone`, `email` — eager-loaded, no N+1 |
+| `items[].unit_price` | Decimal (string in JSON) | Plant price **plus** the selected pot size adjustment at purchase time |
+| `items[].pot_size` | string \| null | Snapshot of the chosen pot size name |
+
+---
+
+### `GET /api/v1/orders`
+
+Paginated admin listing, ordered by `created_at` descending. Customer and items are eager-loaded in fixed query counts.
+
+**Auth:** required
+
+**Query params**
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `page` | integer | `1` | `>= 1` |
+| `page_size` | integer | `20` | `1..100` |
+| `search` | string | — | Matches `order_number`, customer `phone` or customer `name` (case-insensitive) |
+| `status` | enum | — | One of the six order statuses |
+| `customer_id` | UUID | — | Orders of one customer |
+| `date_from` | date | — | `created_at` on or after this UTC date (`YYYY-MM-DD`) |
+| `date_to` | date | — | `created_at` on or before this UTC date (inclusive) |
+
+**Response `200`**
+
+```json
+{
+  "items": [],
+  "page": 1,
+  "page_size": 20,
+  "total": 0
+}
+```
+
+**Errors:** `401`, `422` (unknown status, bad date, bad page size)
+
+```bash
+curl -b cookies.txt "http://localhost:8000/api/v1/orders?page=1&page_size=20&search=0901234567&status=pending&date_from=2026-09-01&date_to=2026-09-16"
+```
+
+---
+
+### `GET /api/v1/orders/{order_id}`
+
+Full detail: order fields, customer, item snapshots, total, shipping address, note and timestamps.
+
+**Auth:** required
+
+**Response `200`** — `OrderResponse`
+
+**Errors:** `401`, `404`, `422`
+
+```bash
+curl -b cookies.txt http://localhost:8000/api/v1/orders/1c9d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f
+```
+
+---
+
+### `POST /api/v1/orders`
+
+**Auth:** required
+
+**Request body**
+
+```json
+{
+  "customer": {
+    "phone": "0901234567",
+    "name": "Nguyen Van A",
+    "email": "customer@example.com"
+  },
+  "shipping_address": "123 Nguyen Trai, District 1, HCMC",
+  "note": "Please call before delivery",
+  "items": [
+    {
+      "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "quantity": 2,
+      "pot_size": "Large"
+    }
+  ]
+}
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `customer.phone` | string | yes | Same rules as `POST /api/v1/customers` |
+| `customer.name` | string | yes | Used only when a new customer is created |
+| `customer.email` | email \| null | no | Stored only when the existing customer has no email yet |
+| `shipping_address` | string | yes | Non-empty after trim |
+| `note` | string \| null | no | |
+| `items` | array | yes | At least one line |
+| `items[].plant_id` | UUID | yes | Must exist and be active |
+| `items[].quantity` | integer | yes | `>= 1` |
+| `items[].pot_size` | string \| null | no | Active pot size **name** of that plant, matched case-insensitively |
+
+**Customer resolution.** The phone number decides everything: an existing phone reuses that customer (their stored `name` is kept, and `email` is only filled in when it was empty), an unknown phone creates a new customer. Duplicate customers can never be created for one phone.
+
+**Pricing.** The client never sets money — `unit_price`, `total_amount` or any other price in the request body is ignored. For every line the backend loads the plant, checks it is active, verifies stock, then calculates:
+
+```
+unit_price   = plant.price + pot_size.price_adjustment
+line_total   = unit_price × quantity
+total_amount = sum(line_total)
+```
+
+All arithmetic uses `Decimal` / `NUMERIC(12,2)`. Prices come from the default-locale `price` / `price_adjustment` columns.
+
+**Stock and transaction.** Stock is verified and deducted inside the same transaction as the customer upsert, the order and the item snapshots, with the plant rows locked (`SELECT ... FOR UPDATE`) so concurrent checkouts cannot oversell. If any line fails, nothing is written at all: no order, no customer, no stock movement. Stock never goes negative, and quantities are summed per plant when the same plant appears on several lines.
+
+New orders always start as `pending`.
+
+**Response `201`** — `OrderResponse`
+
+**Errors**
+
+| Status | When |
+|---|---|
+| `400` | Insufficient stock, inactive plant, unknown/inactive pot size, inactive customer |
+| `401` | Not authenticated |
+| `404` | `plant_id` does not exist |
+| `422` | Invalid body (no items, `quantity < 1`, empty shipping address, unusable phone) |
+
+```bash
+curl -b cookies.txt -X POST http://localhost:8000/api/v1/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customer":{"phone":"0901234567","name":"Nguyen Van A"},"shipping_address":"123 Nguyen Trai, District 1, HCMC","items":[{"plant_id":"3fa85f64-5717-4562-b3fc-2c963f66afa6","quantity":2,"pot_size":"Large"}]}'
+```
+
+---
+
+### `PATCH /api/v1/orders/{order_id}/status`
+
+**Auth:** required
+
+**Request body**
+
+```json
+{
+  "status": "confirmed"
+}
+```
+
+Only the six known statuses are accepted; anything else is `422`. Nothing but `status` changes — items, totals, address and customer are untouched.
+
+**Allowed transitions**
+
+| From | To |
+|---|---|
+| `pending` | `confirmed`, `processing`, `shipping`, `completed`, `cancelled` |
+| `confirmed` | `processing`, `shipping`, `completed`, `cancelled` |
+| `processing` | `shipping`, `completed`, `cancelled` |
+| `shipping` | `completed`, `cancelled` |
+| `completed` | — (final) |
+| `cancelled` | — (final) |
+
+The pipeline only moves forward; going back (for example `shipping` → `confirmed`) is `400`. Re-sending the current status is a no-op that returns the unchanged order.
+
+**Cancellation and stock.** Cancelling restores the ordered quantities to the plants in one transaction with the status change. Because stock is deducted exactly once at creation and `cancelled` is final, stock can never be restored twice — repeating `{"status":"cancelled"}` changes nothing.
+
+**Response `200`** — `OrderResponse`
+
+**Errors**
+
+| Status | When |
+|---|---|
+| `400` | Backwards transition, or the order is already `completed` / `cancelled` |
+| `401` | Not authenticated |
+| `404` | Order does not exist |
+| `422` | Unknown status value |
+
+```bash
+curl -b cookies.txt -X PATCH http://localhost:8000/api/v1/orders/1c9d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/status \
+  -H "Content-Type: application/json" \
+  -d '{"status":"confirmed"}'
+```
+
+---
+
 ## Public storefront API
 
 Base path: `/api/v1/storefront`
@@ -1210,6 +1610,15 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 | `POST` | `/api/v1/plants/{plant_id}/pot-sizes` | Access cookie | Add pot size |
 | `PATCH` | `/api/v1/plants/{plant_id}/pot-sizes/{size_id}` | Access cookie | Update pot size |
 | `DELETE` | `/api/v1/plants/{plant_id}/pot-sizes/{size_id}` | Access cookie | Delete pot size |
+| `GET` | `/api/v1/customers` | Access cookie | List customers (search, status filter) |
+| `GET` | `/api/v1/customers/{customer_id}` | Access cookie | Customer detail |
+| `POST` | `/api/v1/customers` | Access cookie | Create customer |
+| `PATCH` | `/api/v1/customers/{customer_id}` | Access cookie | Update phone / name / email |
+| `PATCH` | `/api/v1/customers/{customer_id}/status` | Access cookie | Activate / deactivate customer |
+| `GET` | `/api/v1/orders` | Access cookie | List orders (search, status, customer, date range) |
+| `GET` | `/api/v1/orders/{order_id}` | Access cookie | Order detail with customer and items |
+| `POST` | `/api/v1/orders` | Access cookie | Create order (backend pricing + stock deduction) |
+| `PATCH` | `/api/v1/orders/{order_id}/status` | Access cookie | Advance or cancel an order |
 | `GET` | `/api/v1/storefront/categories` | No | Public active categories |
 | `GET` | `/api/v1/storefront/plants` | No | Public active catalogue |
 | `GET` | `/api/v1/storefront/plants/{slug}` | No | Public plant detail by slug |
@@ -1229,3 +1638,8 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 - Deactivating a category never deletes or cascades to its plants
 - Inactive plants and categories are excluded from every `/api/v1/storefront` response
 - Storefront responses omit `sku`, exact `stock`, `is_active` and audit timestamps
+- Customers have no password, no login and no self-service endpoints; admin auth guards every customer and order route
+- Customers and orders are never hard-deleted; customers are retired with `/status` and orders only change `status`
+- Order totals and unit prices are always calculated server-side; money in the request body is ignored
+- Stock deduction and order creation share one transaction, and cancellation restores stock exactly once
+- No payment table and no payment endpoints exist
