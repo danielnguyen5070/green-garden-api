@@ -186,6 +186,26 @@ curl -b cookies.txt -X POST http://localhost:8000/api/v1/orders \
   -d '{"customer":{"phone":"0901234567","name":"Nguyen Van A"},"shipping_address":"123 Nguyen Trai, District 1, HCMC","items":[{"plant_id":"<plant-uuid>","quantity":2,"pot_size":"Large"}]}'
 ```
 
+## Dashboard overview
+
+Admin-only (access cookie), read-only, uncached. One request returns everything the admin dashboard renders.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/overview` | `summary`, `sales.today` / `sales.this_month`, `orders_by_status`, `revenue_by_day`, `top_plants`, `low_stock`, `recent_orders` |
+
+Key rules:
+
+- **Revenue means `completed` orders only.** Other statuses are counted, but never earn money; revenue is `SUM(orders.total_amount)` and reads `"0.00"` instead of `null`.
+- **Aggregated in PostgreSQL.** Seven fixed queries built from `COUNT` / `SUM` / `GROUP BY` / `LIMIT` — no table is loaded into Python, so the cost does not grow with the shop. No analytics, statistics or cache table was added.
+- **UTC everywhere.** "Today" and "this month" are UTC windows, and `revenue_by_day` covers the 1st of the current month up to today with a zero-filled entry for every quiet day.
+- **Snapshots for history.** Top sellers are named from `order_items.plant_name`, so renaming a plant never rewrites past sales.
+- **Low stock** means an **active** plant with `stock <= 5`, scarcest first, at most 5 rows.
+
+```bash
+curl -b cookies.txt http://localhost:8000/api/v1/overview
+```
+
 ## Public storefront
 
 No authentication. Only active records are exposed, and admin fields (`sku`, `stock`, `is_active`, timestamps) are omitted.
@@ -248,6 +268,7 @@ app/
   api/v1/plants.py       # Plants / images / pot sizes (admin)
   api/v1/customers.py    # Customers (admin)
   api/v1/orders.py       # Orders (admin)
+  api/v1/overview.py     # Dashboard statistics (admin)
   api/v1/storefront.py   # Public catalogue routes
   core/security.py       # Argon2id + JWT
   core/cookies.py        # HttpOnly cookie helpers
@@ -261,12 +282,14 @@ app/
   schemas/plant_pot_size.py
   schemas/customer.py
   schemas/order.py
+  schemas/overview.py
   services/auth_service.py
   services/admin_service.py
   services/category_service.py
   services/plant_service.py
   services/customer_service.py
   services/order_service.py
+  services/overview_service.py
   models/
 ```
 
@@ -281,3 +304,5 @@ Customers have **no** login — identified by unique phone only.
 Orders keep their shipping address and their line items (`plant_name`, `unit_price`, `pot_size`) as snapshots, so there is no separate address table and no dependency on the current catalogue. There is no payment table.
 
 Indexes: `customers.phone` (unique), `customers.name`, `customers.is_active`, `orders.order_number` (unique), `orders.customer_id`, `orders.status`, `orders.created_at`, `order_items.order_id`, `order_items.plant_id`.
+
+The dashboard overview needed no new index or migration: its order, order item and plant filters are already covered by `orders.status`, `orders.created_at`, `order_items.order_id`, `order_items.plant_id` and `plants.is_active`.

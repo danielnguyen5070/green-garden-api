@@ -1457,6 +1457,107 @@ curl -b cookies.txt -X PATCH http://localhost:8000/api/v1/orders/1c9d2e3f-4a5b-6
 
 ---
 
+## Dashboard overview API
+
+Base path: `/api/v1/overview`
+
+One authenticated request returns every statistic the admin dashboard shows. It is **read-only**: nothing is written, nothing is cached, and there is no analytics, statistics or daily-revenue table behind it — every number is aggregated in PostgreSQL from the eight existing tables (`categories`, `plants`, `customers`, `orders`, `order_items`) at request time.
+
+Two definitions decide what the numbers mean:
+
+- **Revenue = `completed` orders only.** `pending`, `confirmed`, `processing`, `shipping` and `cancelled` orders are counted in `summary.total_orders` and `orders_by_status`, but never earn money. Revenue is always `SUM(orders.total_amount)`, never recalculated from the items, and reads `"0.00"` instead of `null` when nothing has been completed.
+- **Days and months are cut in UTC**, the timezone the API stores and filters every timestamp in, so the dashboard does not drift with the server's local clock.
+
+### `GET /api/v1/overview`
+
+**Auth:** required (active admin, access cookie). Inactive admins cannot log in, and an admin deactivated after logging in is rejected on the next request.
+
+**Response `200`**
+
+```json
+{
+  "summary": {
+    "total_plants": 120,
+    "active_plants": 110,
+    "total_categories": 10,
+    "active_categories": 9,
+    "total_customers": 350,
+    "active_customers": 340,
+    "total_orders": 520,
+    "pending_orders": 12,
+    "total_revenue": "125000000.00"
+  },
+  "sales": {
+    "today": { "orders": 8, "revenue": "2400000.00" },
+    "this_month": { "orders": 120, "revenue": "32000000.00" }
+  },
+  "orders_by_status": {
+    "pending": 12,
+    "confirmed": 20,
+    "processing": 15,
+    "shipping": 18,
+    "completed": 440,
+    "cancelled": 15
+  },
+  "revenue_by_day": [
+    { "date": "2026-09-01", "orders": 5, "revenue": "1200000.00" },
+    { "date": "2026-09-02", "orders": 0, "revenue": "0.00" }
+  ],
+  "top_plants": [
+    {
+      "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "plant_name": "Monstera Deliciosa",
+      "quantity_sold": 42,
+      "revenue": "12600000.00"
+    }
+  ],
+  "low_stock": [
+    {
+      "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "plant_name": "Monstera Deliciosa",
+      "stock": 3
+    }
+  ],
+  "recent_orders": [
+    {
+      "id": "1c9d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
+      "order_number": "GG-20260916-0001",
+      "customer_name": "Nguyen Van A",
+      "customer_phone": "0901234567",
+      "status": "pending",
+      "total_amount": "850000.00",
+      "created_at": "2026-09-16T09:00:00Z"
+    }
+  ]
+}
+```
+
+| Section | Notes |
+|---|---|
+| `summary` | Counts **all** rows; the `active_*` counters additionally require `is_active = true`. `total_revenue` is lifetime completed revenue |
+| `sales.today` | Orders created today (UTC) and the revenue of the completed ones |
+| `sales.this_month` | Same for the current calendar month |
+| `orders_by_status` | All six statuses (`pending`, `confirmed`, `processing`, `shipping`, `completed`, `cancelled`); unused statuses report `0` and are never omitted |
+| `revenue_by_day` | One entry per day from the 1st of the current month up to today, chronological, days without sales included. `orders` counts every order created that day, `revenue` only the completed ones |
+| `top_plants` | Top 5 plants by `quantity_sold` (ties broken by revenue), from **completed** orders only. `plant_name` is the `order_items` snapshot from the most recent sale, and revenue is `SUM(quantity × unit_price)` |
+| `low_stock` | Up to 5 **active** plants with `stock <= 5`, scarcest first. Inactive plants are never listed |
+| `recent_orders` | The 5 newest orders by `created_at`, customer joined in the same query. `customer_name` / `customer_phone` are `null` only if the customer row is unexpectedly missing, which never fails the response |
+
+Money fields are `NUMERIC(12,2)` and serialize as JSON strings, exactly like `OrderResponse.total_amount`.
+
+**Errors**
+
+| Status | When |
+|---|---|
+| `401` | Not authenticated, or the admin is inactive |
+| `500` | Statistics could not be calculated (database details are never exposed) |
+
+```bash
+curl -b cookies.txt http://localhost:8000/api/v1/overview
+```
+
+---
+
 ## Public storefront API
 
 Base path: `/api/v1/storefront`
@@ -1619,6 +1720,7 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 | `GET` | `/api/v1/orders/{order_id}` | Access cookie | Order detail with customer and items |
 | `POST` | `/api/v1/orders` | Access cookie | Create order (backend pricing + stock deduction) |
 | `PATCH` | `/api/v1/orders/{order_id}/status` | Access cookie | Advance or cancel an order |
+| `GET` | `/api/v1/overview` | Access cookie | Dashboard statistics (summary, sales, statuses, daily revenue, top plants, low stock, recent orders) |
 | `GET` | `/api/v1/storefront/categories` | No | Public active categories |
 | `GET` | `/api/v1/storefront/plants` | No | Public active catalogue |
 | `GET` | `/api/v1/storefront/plants/{slug}` | No | Public plant detail by slug |
@@ -1643,3 +1745,4 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 - Order totals and unit prices are always calculated server-side; money in the request body is ignored
 - Stock deduction and order creation share one transaction, and cancellation restores stock exactly once
 - No payment table and no payment endpoints exist
+- `/api/v1/overview` is admin-only and read-only: it never writes, and it only ever reports revenue for `completed` orders
