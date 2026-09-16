@@ -113,8 +113,10 @@ async def post_category(
         category = await create_category(
             db,
             name=payload.name,
+            name_vi=payload.name_vi,
             slug=payload.slug,
             description=payload.description,
+            description_vi=payload.description_vi,
             image_url=str(payload.image_url) if payload.image_url is not None else None,
             sort_order=payload.sort_order,
             is_active=payload.is_active,
@@ -144,12 +146,16 @@ async def patch_category(
             db,
             category_id,
             name=payload.name,
+            name_vi=payload.name_vi,
             slug=payload.slug,
             description=payload.description,
+            description_vi=payload.description_vi,
             image_url=str(payload.image_url) if payload.image_url is not None else None,
             sort_order=payload.sort_order,
             is_active=payload.is_active,
+            name_vi_provided="name_vi" in payload.model_fields_set,
             description_provided="description" in payload.model_fields_set,
+            description_vi_provided="description_vi" in payload.model_fields_set,
             image_url_provided="image_url" in payload.model_fields_set,
         )
     except (CategoryNotFoundError, CategorySlugConflictError) as exc:

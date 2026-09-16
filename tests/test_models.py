@@ -113,12 +113,14 @@ async def test_pot_size_references_plant(db_session: AsyncSession) -> None:
         plant_id=plant.id,
         name="Large",
         price_adjustment=Decimal("20.00"),
+        price_adjustment_vi=Decimal("100000.00"),
     )
     db_session.add(pot)
     await db_session.flush()
 
     assert pot.plant_id == plant.id
     assert pot.price_adjustment == Decimal("20.00")
+    assert pot.price_adjustment_vi == Decimal("100000.00")
 
 
 @pytest.mark.asyncio
@@ -215,6 +217,49 @@ async def test_negative_plant_price_rejected(db_session: AsyncSession) -> None:
 
     with pytest.raises(IntegrityError):
         await db_session.flush()
+
+
+@pytest.mark.asyncio
+async def test_negative_vietnamese_plant_price_rejected(db_session: AsyncSession) -> None:
+    category = Category(name="Neg Price VI", slug="neg-price-vi-cat")
+    db_session.add(category)
+    await db_session.flush()
+
+    plant = Plant(
+        category_id=category.id,
+        name="Bad Vietnamese Price",
+        slug="bad-price-vi-plant",
+        price=Decimal("10.00"),
+        price_vi=Decimal("-1.00"),
+        sku="SKU-BAD-PRICE-VI",
+    )
+    db_session.add(plant)
+
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+@pytest.mark.asyncio
+async def test_vietnamese_fields_default_to_null(db_session: AsyncSession) -> None:
+    category = Category(name="Null VI", slug="null-vi-cat")
+    db_session.add(category)
+    await db_session.flush()
+
+    plant = Plant(
+        category_id=category.id,
+        name="No Translation",
+        slug="no-translation-plant",
+        price=Decimal("10.00"),
+        sku="SKU-NO-VI",
+    )
+    db_session.add(plant)
+    await db_session.flush()
+
+    assert category.name_vi is None
+    assert category.description_vi is None
+    assert plant.name_vi is None
+    assert plant.description_vi is None
+    assert plant.price_vi is None
 
 
 @pytest.mark.asyncio

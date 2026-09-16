@@ -160,9 +160,12 @@ async def post_plant(
             db,
             category_id=payload.category_id,
             name=payload.name,
+            name_vi=payload.name_vi,
             slug=payload.slug,
             description=payload.description,
+            description_vi=payload.description_vi,
             price=payload.price,
+            price_vi=payload.price_vi,
             stock=payload.stock,
             sku=payload.sku,
             is_featured=payload.is_featured,
@@ -191,14 +194,20 @@ async def patch_plant(
             plant_id,
             category_id=payload.category_id,
             name=payload.name,
+            name_vi=payload.name_vi,
             slug=payload.slug,
             description=payload.description,
+            description_vi=payload.description_vi,
             price=payload.price,
+            price_vi=payload.price_vi,
             stock=payload.stock,
             sku=payload.sku,
             is_featured=payload.is_featured,
             is_active=payload.is_active,
+            name_vi_provided="name_vi" in payload.model_fields_set,
             description_provided="description" in payload.model_fields_set,
+            description_vi_provided="description_vi" in payload.model_fields_set,
+            price_vi_provided="price_vi" in payload.model_fields_set,
         )
     except (
         PlantNotFoundError,
@@ -359,6 +368,7 @@ async def post_plant_pot_size(
             plant_id,
             name=payload.name,
             price_adjustment=payload.price_adjustment,
+            price_adjustment_vi=payload.price_adjustment_vi,
             sort_order=payload.sort_order,
             is_active=payload.is_active,
         )
@@ -387,8 +397,12 @@ async def patch_plant_pot_size(
             size_id,
             name=payload.name,
             price_adjustment=payload.price_adjustment,
+            price_adjustment_vi=payload.price_adjustment_vi,
             sort_order=payload.sort_order,
             is_active=payload.is_active,
+            price_adjustment_vi_provided=(
+                "price_adjustment_vi" in payload.model_fields_set
+            ),
         )
     except (PlantNotFoundError, PlantPotSizeNotFoundError) as exc:
         raise _map_plant_errors(exc) from exc

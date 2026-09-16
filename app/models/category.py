@@ -23,9 +23,12 @@ class Category(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    # UNIQUE creates a unique index on slug
+    # Vietnamese copy is optional; `name` / `description` hold the default locale
+    name_vi: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # UNIQUE creates a unique index on slug; the slug is shared by both locales
     slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    description_vi: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)

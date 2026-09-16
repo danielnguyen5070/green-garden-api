@@ -126,9 +126,12 @@ async def get_public_plant_by_slug(
     return PublicPlantDetail(
         id=plant.id,
         name=plant.name,
+        name_vi=plant.name_vi,
         slug=plant.slug,
         description=plant.description,
+        description_vi=plant.description_vi,
         price=plant.price,
+        price_vi=plant.price_vi,
         is_featured=plant.is_featured,
         in_stock=plant.stock > 0,
         category=plant.category,

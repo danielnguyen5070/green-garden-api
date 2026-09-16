@@ -94,8 +94,10 @@ async def create_category(
     session: AsyncSession,
     *,
     name: str,
+    name_vi: str | None,
     slug: str,
     description: str | None,
+    description_vi: str | None,
     image_url: str | None,
     sort_order: int,
     is_active: bool,
@@ -104,8 +106,10 @@ async def create_category(
 
     category = Category(
         name=name,
+        name_vi=name_vi,
         slug=slug,
         description=description,
+        description_vi=description_vi,
         image_url=image_url,
         sort_order=sort_order,
         is_active=is_active,
@@ -124,12 +128,16 @@ async def update_category(
     category_id: uuid.UUID,
     *,
     name: str | None = None,
+    name_vi: str | None = None,
     slug: str | None = None,
     description: str | None = None,
+    description_vi: str | None = None,
     image_url: str | None = None,
     sort_order: int | None = None,
     is_active: bool | None = None,
+    name_vi_provided: bool = False,
     description_provided: bool = False,
+    description_vi_provided: bool = False,
     image_url_provided: bool = False,
 ) -> Category:
     category = await get_category(session, category_id)
@@ -140,8 +148,12 @@ async def update_category(
 
     if name is not None:
         category.name = name
+    if name_vi_provided:
+        category.name_vi = name_vi
     if description_provided:
         category.description = description
+    if description_vi_provided:
+        category.description_vi = description_vi
     if image_url_provided:
         category.image_url = image_url
     if sort_order is not None:

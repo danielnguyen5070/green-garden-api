@@ -567,10 +567,12 @@ There is **no** `DELETE /api/v1/categories/{id}`. Retire a category with `PATCH 
 ```json
 {
   "id": "8c1f1a2e-2b44-4f8e-9a47-4a1d2f2b7f10",
-  "name": "Indoor Plants",
-  "slug": "indoor-plants",
-  "description": "Plants suitable for indoor spaces.",
-  "image_url": "https://example.com/indoor-plants.jpg",
+  "name": "Fruit Trees",
+  "name_vi": "Cây ăn quả",
+  "slug": "fruit-trees",
+  "description": "Fruit trees for your garden.",
+  "description_vi": "Các loại cây ăn quả phù hợp cho khu vườn.",
+  "image_url": "https://example.com/fruit-trees.jpg",
   "sort_order": 1,
   "is_active": true,
   "created_at": "2026-09-16T09:00:00Z",
@@ -580,11 +582,15 @@ There is **no** `DELETE /api/v1/categories/{id}`. Retire a category with `PATCH 
 
 ### Field rules
 
+`name` / `description` hold the English (default) copy and `name_vi` / `description_vi` the Vietnamese copy. The `slug` is shared by both locales — there is no `slug_vi`.
+
 | Field | Type | Rules |
 |---|---|---|
 | `name` | string | Required, trimmed, max 255 |
+| `name_vi` | string \| null | Optional, trimmed, max 255 |
 | `slug` | string | Required, normalized to `a-z0-9-`, unique |
 | `description` | string \| null | Optional, trimmed |
+| `description_vi` | string \| null | Optional, trimmed |
 | `image_url` | URL \| null | Optional, valid http(s), max 1024 |
 | `sort_order` | integer | `>= 0`, defaults `0` |
 | `is_active` | boolean | Defaults `true` |
@@ -613,10 +619,12 @@ Paginated admin listing, ordered by `sort_order ASC` then `created_at ASC`.
   "items": [
     {
       "id": "8c1f1a2e-2b44-4f8e-9a47-4a1d2f2b7f10",
-      "name": "Indoor Plants",
-      "slug": "indoor-plants",
-      "description": "Plants suitable for indoor spaces.",
-      "image_url": "https://example.com/indoor-plants.jpg",
+      "name": "Fruit Trees",
+      "name_vi": "Cây ăn quả",
+      "slug": "fruit-trees",
+      "description": "Fruit trees for your garden.",
+      "description_vi": "Các loại cây ăn quả phù hợp cho khu vườn.",
+      "image_url": "https://example.com/fruit-trees.jpg",
       "sort_order": 1,
       "is_active": true,
       "created_at": "2026-09-16T09:00:00Z",
@@ -665,16 +673,18 @@ curl -b cookies.txt http://localhost:8000/api/v1/categories/8c1f1a2e-2b44-4f8e-9
 
 ```json
 {
-  "name": "Indoor Plants",
-  "slug": "indoor-plants",
-  "description": "Plants suitable for indoor spaces.",
-  "image_url": "https://example.com/indoor-plants.jpg",
+  "name": "Fruit Trees",
+  "name_vi": "Cây ăn quả",
+  "slug": "fruit-trees",
+  "description": "Fruit trees for your garden.",
+  "description_vi": "Các loại cây ăn quả phù hợp cho khu vườn.",
+  "image_url": "https://example.com/fruit-trees.jpg",
   "sort_order": 1,
   "is_active": true
 }
 ```
 
-Only `name` and `slug` are required.
+Only `name` and `slug` are required. Omitted Vietnamese fields are stored as `null`.
 
 **Response `201`** — `CategoryResponse`
 
@@ -689,14 +699,14 @@ Only `name` and `slug` are required.
 ```bash
 curl -b cookies.txt -X POST http://localhost:8000/api/v1/categories \
   -H "Content-Type: application/json" \
-  -d '{"name":"Indoor Plants","slug":"indoor-plants","sort_order":1}'
+  -d '{"name":"Fruit Trees","name_vi":"Cây ăn quả","slug":"fruit-trees","sort_order":1}'
 ```
 
 ---
 
 ### `PATCH /api/v1/categories/{category_id}`
 
-Partial update; all fields optional. Changing the slug re-checks uniqueness. Sending `"description": null` or `"image_url": null` clears the field.
+Partial update; all fields optional. Changing the slug re-checks uniqueness. Sending `"description": null`, `"image_url": null`, `"name_vi": null` or `"description_vi": null` clears the field; omitting a field leaves it as is, so Vietnamese copy can be updated without touching the English values.
 
 **Auth:** required
 
@@ -704,7 +714,8 @@ Partial update; all fields optional. Changing the slug re-checks uniqueness. Sen
 
 ```json
 {
-  "name": "Indoor Plants & Ferns",
+  "name_vi": "Cây ăn quả",
+  "description_vi": "Các loại cây ăn quả phù hợp cho khu vườn.",
   "sort_order": 2
 }
 ```
@@ -759,13 +770,17 @@ There is **no** `DELETE /api/v1/plants/{id}`. Retire a plant with `PATCH /api/v1
   "category_id": "8c1f1a2e-2b44-4f8e-9a47-4a1d2f2b7f10",
   "category": {
     "id": "8c1f1a2e-2b44-4f8e-9a47-4a1d2f2b7f10",
-    "name": "Indoor Plants",
-    "slug": "indoor-plants"
+    "name": "Fruit Trees",
+    "name_vi": "Cây ăn quả",
+    "slug": "fruit-trees"
   },
   "name": "Monstera Deliciosa",
+  "name_vi": "Cây Trầu Bà Nam Mỹ",
   "slug": "monstera-deliciosa",
-  "description": "Beautiful tropical plant.",
-  "price": "250000.00",
+  "description": "A beautiful tropical indoor plant.",
+  "description_vi": "Một loại cây nhiệt đới đẹp, phù hợp trồng trong nhà.",
+  "price": "25.00",
+  "price_vi": "650000.00",
   "stock": 20,
   "sku": "MON-001",
   "is_featured": true,
@@ -777,17 +792,22 @@ There is **no** `DELETE /api/v1/plants/{id}`. Retire a plant with `PATCH /api/v1
 }
 ```
 
-`PlantListItem` is the lightweight listing row: same fields **without** `description`, `images` and `pot_sizes`.
+`PlantListItem` is the lightweight listing row: same fields **without** `description`, `description_vi`, `images` and `pot_sizes`.
 
 #### Field rules
+
+`name` / `description` / `price` hold the English (default) locale and `name_vi` / `description_vi` / `price_vi` the Vietnamese one. The `slug` is shared by both locales — there is no `slug_vi`.
 
 | Field | Type | Rules |
 |---|---|---|
 | `category_id` | UUID | Must reference an existing category |
 | `name` | string | Required, trimmed, max 255 |
+| `name_vi` | string \| null | Optional, trimmed, max 255 |
 | `slug` | string | Required, normalized to `a-z0-9-`, unique |
 | `description` | string \| null | Optional, trimmed |
+| `description_vi` | string \| null | Optional, trimmed |
 | `price` | Decimal (string in JSON) | `>= 0`, `NUMERIC(12,2)` |
+| `price_vi` | Decimal \| null | Optional, `>= 0`, `NUMERIC(12,2)` — DB check `ck_plants_price_vi_non_negative` |
 | `stock` | integer | `>= 0` |
 | `sku` | string | Required, trimmed + uppercased, unique, max 100 |
 | `is_featured` | boolean | Defaults `false` |
@@ -865,15 +885,20 @@ curl -b cookies.txt http://localhost:8000/api/v1/plants/3fa85f64-5717-4562-b3fc-
 {
   "category_id": "8c1f1a2e-2b44-4f8e-9a47-4a1d2f2b7f10",
   "name": "Monstera Deliciosa",
+  "name_vi": "Cây Trầu Bà Nam Mỹ",
   "slug": "monstera-deliciosa",
-  "description": "Beautiful tropical plant.",
-  "price": 250000,
+  "description": "A beautiful tropical indoor plant.",
+  "description_vi": "Một loại cây nhiệt đới đẹp, phù hợp trồng trong nhà.",
+  "price": 25.00,
+  "price_vi": 650000,
   "stock": 20,
   "sku": "MON-001",
   "is_featured": true,
   "is_active": true
 }
 ```
+
+Vietnamese fields are optional; omitting them stores `null`.
 
 **Response `201`** — `PlantResponse`
 
@@ -905,12 +930,13 @@ Partial update; all fields optional.
 ```json
 {
   "name": "Monstera Deliciosa XL",
-  "price": 320000,
-  "category_id": "8c1f1a2e-2b44-4f8e-9a47-4a1d2f2b7f10"
+  "price": 32.00,
+  "name_vi": "Cây Trầu Bà Nam Mỹ XL",
+  "price_vi": 820000
 }
 ```
 
-Changing `category_id` re-validates the category, and changing `slug` / `sku` re-checks uniqueness.
+Changing `category_id` re-validates the category, and changing `slug` / `sku` re-checks uniqueness. Sending `"name_vi": null`, `"description_vi": null` or `"price_vi": null` clears that field; omitted fields keep their stored values, so the two locales can be edited independently.
 
 **Response `200`** — `PlantResponse`
 
@@ -994,8 +1020,9 @@ Ordered by `sort_order`, then `name`.
 {
   "id": "7b1c2d3e-4f5a-6b7c-8d9e-0f1a2b3c4d5e",
   "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "name": "Size M",
-  "price_adjustment": "50000.00",
+  "name": "Large",
+  "price_adjustment": "5.00",
+  "price_adjustment_vi": "100000.00",
   "sort_order": 1,
   "is_active": true,
   "created_at": "2026-09-16T09:00:00Z",
@@ -1007,8 +1034,11 @@ Ordered by `sort_order`, then `name`.
 |---|---|---|
 | `name` | string | Required, trimmed, max 100 |
 | `price_adjustment` | Decimal | `>= 0`, `NUMERIC(12,2)` — enforced by DB check `ck_plant_pot_sizes_price_adjustment_non_negative` |
+| `price_adjustment_vi` | Decimal \| null | Optional, `>= 0`, `NUMERIC(12,2)` — enforced by DB check `ck_plant_pot_sizes_price_adjustment_vi_non_negative` |
 | `sort_order` | integer | `>= 0`, defaults `0` |
 | `is_active` | boolean | Defaults `true` |
+
+Each locale keeps its own adjustment, applied on top of the matching plant price. A plant at `price` 25 AUD / `price_vi` 650,000 VND with the pot size above sells for 30 AUD and 750,000 VND respectively. `PATCH` with `"price_adjustment_vi": null` clears the Vietnamese adjustment and leaves `price_adjustment` untouched.
 
 | Method | Path | Success | Errors |
 |---|---|---|---|
@@ -1022,7 +1052,7 @@ A pot size must belong to `{plant_id}`; otherwise the request returns `404`.
 ```bash
 curl -b cookies.txt -X POST http://localhost:8000/api/v1/plants/3fa85f64-5717-4562-b3fc-2c963f66afa6/pot-sizes \
   -H "Content-Type: application/json" \
-  -d '{"name":"Size M","price_adjustment":50000,"sort_order":1,"is_active":true}'
+  -d '{"name":"Large","price_adjustment":5,"price_adjustment_vi":100000,"sort_order":1,"is_active":true}'
 ```
 
 ---
@@ -1048,10 +1078,12 @@ Active category navigation, ordered by `sort_order ASC` then `created_at ASC`.
   "items": [
     {
       "id": "8c1f1a2e-2b44-4f8e-9a47-4a1d2f2b7f10",
-      "name": "Indoor Plants",
-      "slug": "indoor-plants",
-      "description": "Plants suitable for indoor spaces.",
-      "image_url": "https://example.com/indoor-plants.jpg",
+      "name": "Fruit Trees",
+      "name_vi": "Cây ăn quả",
+      "slug": "fruit-trees",
+      "description": "Fruit trees for your garden.",
+      "description_vi": "Các loại cây ăn quả phù hợp cho khu vườn.",
+      "image_url": "https://example.com/fruit-trees.jpg",
       "sort_order": 1
     }
   ],
@@ -1083,13 +1115,16 @@ Same pagination, search, sorting and price filters as the admin list, minus `is_
     {
       "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
       "name": "Monstera Deliciosa",
+      "name_vi": "Cây Trầu Bà Nam Mỹ",
       "slug": "monstera-deliciosa",
-      "price": "250000.00",
+      "price": "25.00",
+      "price_vi": "650000.00",
       "is_featured": true,
       "category": {
         "id": "8c1f1a2e-2b44-4f8e-9a47-4a1d2f2b7f10",
-        "name": "Indoor Plants",
-        "slug": "indoor-plants"
+        "name": "Fruit Trees",
+        "name_vi": "Cây ăn quả",
+        "slug": "fruit-trees"
       }
     }
   ],
@@ -1109,15 +1144,19 @@ Same pagination, search, sorting and price filters as the admin list, minus `is_
 {
   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "name": "Monstera Deliciosa",
+  "name_vi": "Cây Trầu Bà Nam Mỹ",
   "slug": "monstera-deliciosa",
-  "description": "Beautiful tropical plant.",
-  "price": "250000.00",
+  "description": "A beautiful tropical indoor plant.",
+  "description_vi": "Một loại cây nhiệt đới đẹp, phù hợp trồng trong nhà.",
+  "price": "25.00",
+  "price_vi": "650000.00",
   "is_featured": true,
   "in_stock": true,
   "category": {
     "id": "8c1f1a2e-2b44-4f8e-9a47-4a1d2f2b7f10",
-    "name": "Indoor Plants",
-    "slug": "indoor-plants"
+    "name": "Fruit Trees",
+    "name_vi": "Cây ăn quả",
+    "slug": "fruit-trees"
   },
   "images": [],
   "pot_sizes": []

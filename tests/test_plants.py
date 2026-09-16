@@ -839,6 +839,288 @@ async def test_plant_pot_sizes_missing_plant(
 
 
 # --------------------------------------------------------------------------
+# Vietnamese fields
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_plant_with_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    body = await _create_plant(
+        client,
+        test_category,
+        name="Monstera Deliciosa",
+        description="A beautiful tropical indoor plant.",
+        name_vi="Cây Trầu Bà Nam Mỹ",
+        description_vi="Một loại cây nhiệt đới đẹp, phù hợp trồng trong nhà.",
+        price="25.00",
+        price_vi="650000.00",
+    )
+
+    assert body["name"] == "Monstera Deliciosa"
+    assert body["name_vi"] == "Cây Trầu Bà Nam Mỹ"
+    assert body["description"] == "A beautiful tropical indoor plant."
+    assert body["description_vi"] == (
+        "Một loại cây nhiệt đới đẹp, phù hợp trồng trong nhà."
+    )
+    assert Decimal(body["price"]) == Decimal("25.00")
+    assert Decimal(body["price_vi"]) == Decimal("650000.00")
+    assert "slug_vi" not in body
+
+
+@pytest.mark.asyncio
+async def test_create_plant_without_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    body = await _create_plant(client, test_category)
+
+    assert body["name_vi"] is None
+    assert body["description_vi"] is None
+    assert body["price_vi"] is None
+
+
+@pytest.mark.asyncio
+async def test_create_plant_negative_vietnamese_price(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    response = await client.post(
+        PLANTS_PREFIX,
+        json=_plant_payload(test_category, price_vi="-1.00"),
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_plant_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(client, test_category, price="25.00")
+
+    response = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={
+            "name_vi": "Cây Trầu Bà Nam Mỹ",
+            "description_vi": "Một loại cây nhiệt đới đẹp.",
+            "price_vi": "650000.00",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name_vi"] == "Cây Trầu Bà Nam Mỹ"
+    assert body["description_vi"] == "Một loại cây nhiệt đới đẹp."
+    assert Decimal(body["price_vi"]) == Decimal("650000.00")
+    # English values stay untouched when only Vietnamese fields are sent
+    assert body["name"] == created["name"]
+    assert body["description"] == created["description"]
+    assert Decimal(body["price"]) == Decimal("25.00")
+
+
+@pytest.mark.asyncio
+async def test_update_plant_clears_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(
+        client,
+        test_category,
+        name_vi="Cây Trầu Bà Nam Mỹ",
+        description_vi="Một loại cây nhiệt đới đẹp.",
+        price_vi="650000.00",
+    )
+
+    response = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={"name_vi": None, "description_vi": None, "price_vi": None},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name_vi"] is None
+    assert body["description_vi"] is None
+    assert body["price_vi"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_plant_negative_vietnamese_price(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(client, test_category)
+
+    response = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={"price_vi": "-1.00"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_get_plant_returns_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(
+        client,
+        test_category,
+        name_vi="Cây Trầu Bà Nam Mỹ",
+        description_vi="Một loại cây nhiệt đới đẹp.",
+        price_vi="650000.00",
+    )
+
+    detail = await client.get(f"{PLANTS_PREFIX}/{created['id']}")
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body["name_vi"] == "Cây Trầu Bà Nam Mỹ"
+    assert body["description_vi"] == "Một loại cây nhiệt đới đẹp."
+    assert Decimal(body["price_vi"]) == Decimal("650000.00")
+
+    listed = await client.get(
+        PLANTS_PREFIX,
+        params={"search": created["sku"]},
+    )
+    rows = listed.json()["items"]
+    assert [row["name_vi"] for row in rows] == ["Cây Trầu Bà Nam Mỹ"]
+    assert [Decimal(row["price_vi"]) for row in rows] == [Decimal("650000.00")]
+
+
+@pytest.mark.asyncio
+async def test_plant_status_keeps_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(
+        client,
+        test_category,
+        name_vi="Cây Trầu Bà Nam Mỹ",
+        price_vi="650000.00",
+    )
+
+    response = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}/status",
+        json={"is_active": False},
+    )
+    assert response.status_code == 200
+    assert response.json()["name_vi"] == "Cây Trầu Bà Nam Mỹ"
+    assert Decimal(response.json()["price_vi"]) == Decimal("650000.00")
+
+
+@pytest.mark.asyncio
+async def test_pot_size_vietnamese_price_adjustment(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    """Both locales keep their own adjustment: 25+5 AUD and 650k+100k VND."""
+    await _login(client, active_admin)
+    plant = await _create_plant(
+        client,
+        test_category,
+        price="25.00",
+        price_vi="650000.00",
+    )
+
+    created = await client.post(
+        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes",
+        json={
+            "name": "Large",
+            "price_adjustment": "5.00",
+            "price_adjustment_vi": "100000.00",
+        },
+    )
+    assert created.status_code == 201
+    pot_size = created.json()
+    assert Decimal(pot_size["price_adjustment"]) == Decimal("5.00")
+    assert Decimal(pot_size["price_adjustment_vi"]) == Decimal("100000.00")
+
+    assert Decimal(plant["price"]) + Decimal(pot_size["price_adjustment"]) == Decimal(
+        "30.00"
+    )
+    assert Decimal(plant["price_vi"]) + Decimal(
+        pot_size["price_adjustment_vi"]
+    ) == Decimal("750000.00")
+
+    listed = await client.get(f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes")
+    rows = listed.json()
+    assert [Decimal(row["price_adjustment"]) for row in rows] == [Decimal("5.00")]
+    assert [Decimal(row["price_adjustment_vi"]) for row in rows] == [
+        Decimal("100000.00")
+    ]
+
+    updated = await client.patch(
+        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes/{pot_size['id']}",
+        json={"price_adjustment_vi": "120000.00"},
+    )
+    assert updated.status_code == 200
+    # The default-locale adjustment is unaffected by the Vietnamese update
+    assert Decimal(updated.json()["price_adjustment"]) == Decimal("5.00")
+    assert Decimal(updated.json()["price_adjustment_vi"]) == Decimal("120000.00")
+
+    cleared = await client.patch(
+        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes/{pot_size['id']}",
+        json={"price_adjustment_vi": None},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["price_adjustment_vi"] is None
+
+
+@pytest.mark.asyncio
+async def test_pot_size_without_vietnamese_price_adjustment(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    plant = await _create_plant(client, test_category)
+
+    created = await client.post(
+        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes",
+        json={"name": "Small", "price_adjustment": "5.00"},
+    )
+    assert created.status_code == 201
+    assert created.json()["price_adjustment_vi"] is None
+
+
+@pytest.mark.asyncio
+async def test_pot_size_negative_vietnamese_price_adjustment(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    plant = await _create_plant(client, test_category)
+
+    response = await client.post(
+        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes",
+        json={
+            "name": "Large",
+            "price_adjustment": "5.00",
+            "price_adjustment_vi": "-1.00",
+        },
+    )
+    assert response.status_code == 422
+
+
+# --------------------------------------------------------------------------
 # Public storefront
 # --------------------------------------------------------------------------
 
@@ -904,6 +1186,37 @@ async def test_public_list_hides_admin_fields(
         assert "sku" not in item
         assert "stock" not in item
         assert "is_active" not in item
+
+
+@pytest.mark.asyncio
+async def test_public_plants_return_vietnamese_fields(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    plant = await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        name_vi="Cây Trầu Bà Nam Mỹ",
+        description_vi="Một loại cây nhiệt đới đẹp.",
+        price_vi=Decimal("650000.00"),
+    )
+
+    detail = await client.get(f"{STOREFRONT_PREFIX}/plants/{plant.slug}")
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body["name_vi"] == "Cây Trầu Bà Nam Mỹ"
+    assert body["description_vi"] == "Một loại cây nhiệt đới đẹp."
+    assert Decimal(body["price_vi"]) == Decimal("650000.00")
+
+    listed = await client.get(
+        f"{STOREFRONT_PREFIX}/plants",
+        params={"search": plant.sku},
+    )
+    rows = listed.json()["items"]
+    assert [row["name_vi"] for row in rows] == ["Cây Trầu Bà Nam Mỹ"]
+    assert [Decimal(row["price_vi"]) for row in rows] == [Decimal("650000.00")]
 
 
 @pytest.mark.asyncio

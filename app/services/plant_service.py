@@ -192,9 +192,12 @@ async def create_plant(
     *,
     category_id: uuid.UUID,
     name: str,
+    name_vi: str | None,
     slug: str,
     description: str | None,
+    description_vi: str | None,
     price: Decimal,
+    price_vi: Decimal | None,
     stock: int,
     sku: str,
     is_featured: bool,
@@ -207,9 +210,12 @@ async def create_plant(
     plant = Plant(
         category_id=category_id,
         name=name,
+        name_vi=name_vi,
         slug=slug,
         description=description,
+        description_vi=description_vi,
         price=price,
+        price_vi=price_vi,
         stock=stock,
         sku=sku,
         is_featured=is_featured,
@@ -230,14 +236,20 @@ async def update_plant(
     *,
     category_id: uuid.UUID | None = None,
     name: str | None = None,
+    name_vi: str | None = None,
     slug: str | None = None,
     description: str | None = None,
+    description_vi: str | None = None,
     price: Decimal | None = None,
+    price_vi: Decimal | None = None,
     stock: int | None = None,
     sku: str | None = None,
     is_featured: bool | None = None,
     is_active: bool | None = None,
+    name_vi_provided: bool = False,
     description_provided: bool = False,
+    description_vi_provided: bool = False,
+    price_vi_provided: bool = False,
 ) -> Plant:
     plant = await get_plant(session, plant_id)
 
@@ -255,10 +267,16 @@ async def update_plant(
 
     if name is not None:
         plant.name = name
+    if name_vi_provided:
+        plant.name_vi = name_vi
     if description_provided:
         plant.description = description
+    if description_vi_provided:
+        plant.description_vi = description_vi
     if price is not None:
         plant.price = price
+    if price_vi_provided:
+        plant.price_vi = price_vi
     if stock is not None:
         plant.stock = stock
     if is_featured is not None:
@@ -436,6 +454,7 @@ async def add_plant_pot_size(
     *,
     name: str,
     price_adjustment: Decimal,
+    price_adjustment_vi: Decimal | None,
     sort_order: int,
     is_active: bool,
 ) -> PlantPotSize:
@@ -444,6 +463,7 @@ async def add_plant_pot_size(
         plant_id=plant_id,
         name=name,
         price_adjustment=price_adjustment,
+        price_adjustment_vi=price_adjustment_vi,
         sort_order=sort_order,
         is_active=is_active,
     )
@@ -464,8 +484,10 @@ async def update_plant_pot_size(
     *,
     name: str | None = None,
     price_adjustment: Decimal | None = None,
+    price_adjustment_vi: Decimal | None = None,
     sort_order: int | None = None,
     is_active: bool | None = None,
+    price_adjustment_vi_provided: bool = False,
 ) -> PlantPotSize:
     pot_size = await _get_plant_pot_size(session, plant_id, size_id)
 
@@ -473,6 +495,8 @@ async def update_plant_pot_size(
         pot_size.name = name
     if price_adjustment is not None:
         pot_size.price_adjustment = price_adjustment
+    if price_adjustment_vi_provided:
+        pot_size.price_adjustment_vi = price_adjustment_vi
     if sort_order is not None:
         pot_size.sort_order = sort_order
     if is_active is not None:

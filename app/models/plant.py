@@ -32,6 +32,8 @@ class Plant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "plants"
     __table_args__ = (
         CheckConstraint("price >= 0", name="ck_plants_price_non_negative"),
+        # NULL price_vi passes the check: the Vietnamese price is optional
+        CheckConstraint("price_vi >= 0", name="ck_plants_price_vi_non_negative"),
         CheckConstraint("stock >= 0", name="ck_plants_stock_non_negative"),
         Index("ix_plants_category_id", "category_id"),
         Index("ix_plants_is_active", "is_active"),
@@ -44,9 +46,13 @@ class Plant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Vietnamese copy/pricing is optional; the unprefixed columns are the default locale
+    name_vi: Mapped[str | None] = mapped_column(String(255), nullable=True)
     slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    description_vi: Mapped[str | None] = mapped_column(Text, nullable=True)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    price_vi: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     stock: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     sku: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     is_featured: Mapped[bool] = mapped_column(

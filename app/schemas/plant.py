@@ -30,9 +30,12 @@ __all__ = [
 class PlantCreate(BaseModel):
     category_id: UUID
     name: str = Field(min_length=1, max_length=255)
+    name_vi: str | None = Field(default=None, max_length=255)
     slug: str = Field(min_length=1, max_length=255)
     description: str | None = None
+    description_vi: str | None = None
     price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+    price_vi: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     stock: int = Field(default=0, ge=0)
     sku: str = Field(min_length=1, max_length=100)
     is_featured: bool = False
@@ -46,9 +49,9 @@ class PlantCreate(BaseModel):
             raise ValueError("Name is required")
         return stripped
 
-    @field_validator("description")
+    @field_validator("name_vi", "description", "description_vi")
     @classmethod
-    def strip_description(cls, value: str | None) -> str | None:
+    def strip_optional_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
         stripped = value.strip()
@@ -74,9 +77,12 @@ class PlantCreate(BaseModel):
 class PlantUpdate(BaseModel):
     category_id: UUID | None = None
     name: str | None = Field(default=None, min_length=1, max_length=255)
+    name_vi: str | None = Field(default=None, max_length=255)
     slug: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
+    description_vi: str | None = None
     price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+    price_vi: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     stock: int | None = Field(default=None, ge=0)
     sku: str | None = Field(default=None, min_length=1, max_length=100)
     is_featured: bool | None = None
@@ -92,9 +98,9 @@ class PlantUpdate(BaseModel):
             raise ValueError("Name cannot be empty")
         return stripped
 
-    @field_validator("description")
+    @field_validator("name_vi", "description", "description_vi")
     @classmethod
-    def strip_description(cls, value: str | None) -> str | None:
+    def strip_optional_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
         stripped = value.strip()
@@ -134,8 +140,10 @@ class PlantListItem(BaseModel):
     category_id: UUID
     category: CategorySummary | None = None
     name: str
+    name_vi: str | None
     slug: str
     price: Decimal
+    price_vi: Decimal | None
     stock: int
     sku: str
     is_featured: bool
@@ -153,9 +161,12 @@ class PlantResponse(BaseModel):
     category_id: UUID
     category: CategorySummary | None = None
     name: str
+    name_vi: str | None
     slug: str
     description: str | None
+    description_vi: str | None
     price: Decimal
+    price_vi: Decimal | None
     stock: int
     sku: str
     is_featured: bool
@@ -180,8 +191,10 @@ class PublicPlantListItem(BaseModel):
 
     id: UUID
     name: str
+    name_vi: str | None
     slug: str
     price: Decimal
+    price_vi: Decimal | None
     is_featured: bool
     category: CategorySummary | None = None
 
@@ -200,9 +213,12 @@ class PublicPlantDetail(BaseModel):
 
     id: UUID
     name: str
+    name_vi: str | None
     slug: str
     description: str | None
+    description_vi: str | None
     price: Decimal
+    price_vi: Decimal | None
     is_featured: bool
     in_stock: bool
     category: CategorySummary | None = None

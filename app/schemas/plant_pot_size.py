@@ -15,6 +15,10 @@ class PlantPotSizeCreate(BaseModel):
     price_adjustment: Decimal = Field(
         default=Decimal("0.00"), ge=0, max_digits=12, decimal_places=2
     )
+    # Applied on top of the plant's Vietnamese price; omit when there is none
+    price_adjustment_vi: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2
+    )
     sort_order: int = Field(default=0, ge=0)
     is_active: bool = True
 
@@ -30,6 +34,9 @@ class PlantPotSizeCreate(BaseModel):
 class PlantPotSizeUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     price_adjustment: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2
+    )
+    price_adjustment_vi: Decimal | None = Field(
         default=None, ge=0, max_digits=12, decimal_places=2
     )
     sort_order: int | None = Field(default=None, ge=0)
@@ -53,6 +60,7 @@ class PlantPotSizeResponse(BaseModel):
     plant_id: UUID
     name: str
     price_adjustment: Decimal
+    price_adjustment_vi: Decimal | None
     sort_order: int
     is_active: bool
     created_at: datetime

@@ -17,13 +17,16 @@ class CategorySummary(BaseModel):
 
     id: UUID
     name: str
+    name_vi: str | None = None
     slug: str
 
 
 class CategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
+    name_vi: str | None = Field(default=None, max_length=255)
     slug: str = Field(min_length=1, max_length=255)
     description: str | None = None
+    description_vi: str | None = None
     image_url: AnyHttpUrl | None = None
     sort_order: int = Field(default=0, ge=0)
     is_active: bool = True
@@ -36,9 +39,9 @@ class CategoryCreate(BaseModel):
             raise ValueError("Name is required")
         return stripped
 
-    @field_validator("description")
+    @field_validator("name_vi", "description", "description_vi")
     @classmethod
-    def strip_description(cls, value: str | None) -> str | None:
+    def strip_optional_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
         stripped = value.strip()
@@ -62,8 +65,10 @@ class CategoryCreate(BaseModel):
 
 class CategoryUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
+    name_vi: str | None = Field(default=None, max_length=255)
     slug: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
+    description_vi: str | None = None
     image_url: AnyHttpUrl | None = None
     sort_order: int | None = Field(default=None, ge=0)
     is_active: bool | None = None
@@ -78,9 +83,9 @@ class CategoryUpdate(BaseModel):
             raise ValueError("Name cannot be empty")
         return stripped
 
-    @field_validator("description")
+    @field_validator("name_vi", "description", "description_vi")
     @classmethod
-    def strip_description(cls, value: str | None) -> str | None:
+    def strip_optional_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
         stripped = value.strip()
@@ -113,8 +118,10 @@ class CategoryResponse(BaseModel):
 
     id: UUID
     name: str
+    name_vi: str | None
     slug: str
     description: str | None
+    description_vi: str | None
     image_url: str | None
     sort_order: int
     is_active: bool
@@ -142,8 +149,10 @@ class PublicCategoryListItem(BaseModel):
 
     id: UUID
     name: str
+    name_vi: str | None
     slug: str
     description: str | None
+    description_vi: str | None
     image_url: str | None
     sort_order: int
 

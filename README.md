@@ -99,12 +99,14 @@ Admin-only (access cookie). Categories are never hard-deleted — deactivate the
 
 Listings are ordered by `sort_order ASC`, then `created_at ASC`. Duplicate slug returns `409 Conflict`.
 
+`name` / `description` carry the English (default) copy and the optional `name_vi` / `description_vi` the Vietnamese copy. The `slug` is shared by both locales.
+
 ### Example: create category
 
 ```bash
 curl -b cookies.txt -X POST http://localhost:8000/api/v1/categories \
   -H "Content-Type: application/json" \
-  -d '{"name":"Indoor Plants","slug":"indoor-plants","sort_order":1}'
+  -d '{"name":"Fruit Trees","name_vi":"Cây ăn quả","slug":"fruit-trees","sort_order":1}'
 ```
 
 ## Plants management
@@ -125,12 +127,14 @@ Admin-only (access cookie). Plants are never hard-deleted — deactivate them in
 
 Duplicate slug or SKU returns `409 Conflict`; an unknown category returns `404 Not Found`. Money uses `Decimal` / `NUMERIC(12,2)` and is serialized as a string.
 
+Plants carry optional `name_vi`, `description_vi` and `price_vi` alongside the English fields, and pot sizes carry `price_adjustment_vi` alongside `price_adjustment`, so each locale is priced independently.
+
 ### Example: create plant
 
 ```bash
 curl -b cookies.txt -X POST http://localhost:8000/api/v1/plants \
   -H "Content-Type: application/json" \
-  -d '{"category_id":"<category-uuid>","name":"Monstera Deliciosa","slug":"monstera-deliciosa","price":250000,"stock":20,"sku":"MON-001"}'
+  -d '{"category_id":"<category-uuid>","name":"Monstera Deliciosa","name_vi":"Cây Trầu Bà Nam Mỹ","slug":"monstera-deliciosa","price":25,"price_vi":650000,"stock":20,"sku":"MON-001"}'
 ```
 
 ## Public storefront

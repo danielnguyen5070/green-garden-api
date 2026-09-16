@@ -604,6 +604,128 @@ async def test_deactivating_category_keeps_plants_intact(
 
 
 # --------------------------------------------------------------------------
+# Vietnamese fields
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_category_with_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+) -> None:
+    await _login(client, active_admin)
+    body = await _create_category(
+        client,
+        name="Fruit Trees",
+        name_vi="Cây ăn quả",
+        description="Fruit trees for your garden.",
+        description_vi="Các loại cây ăn quả phù hợp cho khu vườn.",
+    )
+
+    assert body["name"] == "Fruit Trees"
+    assert body["name_vi"] == "Cây ăn quả"
+    assert body["description"] == "Fruit trees for your garden."
+    assert body["description_vi"] == "Các loại cây ăn quả phù hợp cho khu vườn."
+    assert "slug_vi" not in body
+
+
+@pytest.mark.asyncio
+async def test_create_category_without_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+) -> None:
+    await _login(client, active_admin)
+    body = await _create_category(client)
+
+    assert body["name_vi"] is None
+    assert body["description_vi"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_category_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_category(client, name_vi="Cây trong nhà")
+
+    response = await client.patch(
+        f"{CATEGORIES_PREFIX}/{created['id']}",
+        json={
+            "name_vi": "Cây ăn quả",
+            "description_vi": "Các loại cây ăn quả phù hợp cho khu vườn.",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name_vi"] == "Cây ăn quả"
+    assert body["description_vi"] == "Các loại cây ăn quả phù hợp cho khu vườn."
+    # English values stay untouched when only Vietnamese fields are sent
+    assert body["name"] == created["name"]
+    assert body["description"] == created["description"]
+
+
+@pytest.mark.asyncio
+async def test_update_category_clears_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_category(
+        client,
+        name_vi="Cây ăn quả",
+        description_vi="Các loại cây ăn quả.",
+    )
+
+    response = await client.patch(
+        f"{CATEGORIES_PREFIX}/{created['id']}",
+        json={"name_vi": None, "description_vi": None},
+    )
+    assert response.status_code == 200
+    assert response.json()["name_vi"] is None
+    assert response.json()["description_vi"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_category_returns_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_category(
+        client,
+        name_vi="Cây ăn quả",
+        description_vi="Các loại cây ăn quả.",
+    )
+
+    detail = await client.get(f"{CATEGORIES_PREFIX}/{created['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["name_vi"] == "Cây ăn quả"
+    assert detail.json()["description_vi"] == "Các loại cây ăn quả."
+
+    listed = await client.get(CATEGORIES_PREFIX, params={"search": created["slug"]})
+    rows = listed.json()["items"]
+    assert [row["name_vi"] for row in rows] == ["Cây ăn quả"]
+    assert [row["description_vi"] for row in rows] == ["Các loại cây ăn quả."]
+
+
+@pytest.mark.asyncio
+async def test_category_status_keeps_vietnamese_fields(
+    client: AsyncClient,
+    active_admin: Admin,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_category(client, name_vi="Cây ăn quả")
+
+    response = await client.patch(
+        f"{CATEGORIES_PREFIX}/{created['id']}/status",
+        json={"is_active": False},
+    )
+    assert response.status_code == 200
+    assert response.json()["name_vi"] == "Cây ăn quả"
+
+
+# --------------------------------------------------------------------------
 # Public storefront
 # --------------------------------------------------------------------------
 
@@ -684,4 +806,27 @@ async def test_public_categories_ordering(
     assert [item["id"] for item in response.json()["items"]] == [
         str(first.id),
         str(second.id),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_public_categories_return_vietnamese_fields(
+    client: AsyncClient,
+    test_db_session: AsyncSession,
+) -> None:
+    category = await _seed_category(
+        test_db_session,
+        name_vi="Cây ăn quả",
+        description_vi="Các loại cây ăn quả phù hợp cho khu vườn.",
+    )
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/categories",
+        params={"search": category.slug},
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [item["name_vi"] for item in items] == ["Cây ăn quả"]
+    assert [item["description_vi"] for item in items] == [
+        "Các loại cây ăn quả phù hợp cho khu vườn."
     ]

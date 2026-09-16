@@ -31,6 +31,11 @@ class PlantPotSize(Base, UUIDPrimaryKeyMixin, TimestampMixin):
             "price_adjustment >= 0",
             name="ck_plant_pot_sizes_price_adjustment_non_negative",
         ),
+        # NULL price_adjustment_vi passes the check: the Vietnamese adjustment is optional
+        CheckConstraint(
+            "price_adjustment_vi >= 0",
+            name="ck_plant_pot_sizes_price_adjustment_vi_non_negative",
+        ),
         Index("ix_plant_pot_sizes_plant_id", "plant_id"),
     )
 
@@ -45,6 +50,11 @@ class PlantPotSize(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         default=Decimal("0.00"),
         server_default="0",
         nullable=False,
+    )
+    # Applied on top of plants.price_vi; NULL means no Vietnamese adjustment is set
+    price_adjustment_vi: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
     )
     sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     is_active: Mapped[bool] = mapped_column(
