@@ -1606,6 +1606,8 @@ curl http://localhost:8000/api/v1/storefront/categories
 
 Same pagination, search, sorting and price filters as the admin list, minus `is_active` (always `true`).
 
+Each row is a complete catalogue card — copy, pricing, stock and media — so the homepage never has to call the detail endpoint per plant.
+
 **Query params:** `page`, `page_size`, `search`, `category_id`, `is_featured`, `min_price`, `max_price`, `sort`, `order`
 
 **Response `200`**
@@ -1618,15 +1620,27 @@ Same pagination, search, sorting and price filters as the admin list, minus `is_
       "name": "Monstera Deliciosa",
       "name_vi": "Cây Trầu Bà Nam Mỹ",
       "slug": "monstera-deliciosa",
+      "description": "A beautiful tropical indoor plant.",
+      "description_vi": "Một loại cây nhiệt đới đẹp, phù hợp trồng trong nhà.",
       "price": "25.00",
       "price_vi": "650000.00",
+      "stock": 12,
       "is_featured": true,
       "category": {
         "id": "8c1f1a2e-2b44-4f8e-9a47-4a1d2f2b7f10",
         "name": "Fruit Trees",
         "name_vi": "Cây ăn quả",
         "slug": "fruit-trees"
-      }
+      },
+      "images": [
+        {
+          "id": "6d0b1c9a-77f2-4c2e-8a3d-1f5b9c7e4a20",
+          "url": "https://cdn.example.com/monstera-front.jpg",
+          "type": "image",
+          "alt_text": "Monstera seen from the front",
+          "sort_order": 0
+        }
+      ]
     }
   ],
   "page": 1,
@@ -1634,6 +1648,16 @@ Same pagination, search, sorting and price filters as the admin list, minus `is_
   "total": 1
 }
 ```
+
+| Field | Notes |
+|---|---|
+| `name` / `description` / `price` | English copy and pricing |
+| `name_vi` / `description_vi` / `price_vi` | Vietnamese copy and pricing, `null` when not translated |
+| `slug` | Shared by both locales |
+| `stock` | Units on hand. The detail endpoint still reports only `in_stock` |
+| `images` | Rows from `plant_images`, ordered by `sort_order` ascending (oldest first on a tie), `[]` when the plant has no media. `type` is `image` or `video`, since both live in that table |
+
+Images are eager-loaded with **one** extra query for the whole page, so the listing stays at a fixed query count (`count` + rows + categories + images) no matter how many plants or images a page holds.
 
 **Errors:** `422`
 
@@ -1664,7 +1688,7 @@ Same pagination, search, sorting and price filters as the admin list, minus `is_
 }
 ```
 
-Exact stock counts are hidden — the storefront only sees `in_stock`. Only **active** pot sizes are included.
+The detail response reports availability as the `in_stock` flag, while the listing returns the exact `stock` the catalogue cards display. Only **active** pot sizes are included. Images use the full `PlantImageResponse` shape here (including `plant_id` and `created_at`); the listing returns the trimmed card shape above.
 
 **Errors**
 
@@ -1739,7 +1763,7 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 - Plants and categories are never hard-deleted; use the `/status` endpoints
 - Deactivating a category never deletes or cascades to its plants
 - Inactive plants and categories are excluded from every `/api/v1/storefront` response
-- Storefront responses omit `sku`, exact `stock`, `is_active` and audit timestamps
+- Storefront responses omit `sku`, `is_active` and audit timestamps; the plant listing exposes `stock` for the catalogue cards, while the detail response only reports `in_stock`
 - Customers have no password, no login and no self-service endpoints; admin auth guards every customer and order route
 - Customers and orders are never hard-deleted; customers are retired with `/status` and orders only change `status`
 - Order totals and unit prices are always calculated server-side; money in the request body is ignored

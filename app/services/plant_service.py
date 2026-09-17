@@ -57,11 +57,17 @@ def _detail_options() -> tuple[Any, ...]:
     )
 
 
-def _list_options() -> tuple[Any, ...]:
-    """Listings only need the category — skip media and variant collections."""
+def _list_options(*, with_images: bool = False) -> tuple[Any, ...]:
+    """
+    Listings only need the category — skip media and variant collections.
+
+    The storefront catalogue also renders media, so it opts into the images
+    with `selectinload`: one extra `IN` query for the whole page instead of one
+    query per plant.
+    """
     return (
         selectinload(Plant.category).noload(Category.plants),
-        noload(Plant.images),
+        selectinload(Plant.images) if with_images else noload(Plant.images),
         noload(Plant.pot_sizes),
         noload(Plant.order_items),
     )
@@ -134,6 +140,7 @@ async def list_plants(
     max_price: Decimal | None = None,
     sort: SortField = "created_at",
     order: SortOrder = "desc",
+    with_images: bool = False,
 ) -> tuple[list[Plant], int]:
     filters = {
         "search": search,
@@ -152,7 +159,7 @@ async def list_plants(
 
     stmt = _apply_filters(select(Plant), **filters)
     stmt = (
-        stmt.options(*_list_options())
+        stmt.options(*_list_options(with_images=with_images))
         .order_by(ordering, Plant.id)
         .offset((page - 1) * page_size)
         .limit(page_size)

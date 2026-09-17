@@ -64,3 +64,19 @@ class PlantImageResponse(BaseModel):
     alt_text: str | None
     sort_order: int
     created_at: datetime
+
+
+class PublicPlantImage(BaseModel):
+    """Storefront media row — no `plant_id` back-reference, no audit timestamp.
+
+    `type` tells the storefront whether the URL is an image or a video, since
+    both live in `plant_images`.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    url: str
+    type: PlantImageType
+    alt_text: str | None
+    sort_order: int

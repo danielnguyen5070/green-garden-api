@@ -208,13 +208,15 @@ curl -b cookies.txt http://localhost:8000/api/v1/overview
 
 ## Public storefront
 
-No authentication. Only active records are exposed, and admin fields (`sku`, `stock`, `is_active`, timestamps) are omitted.
+No authentication. Only active records are exposed, and admin fields (`sku`, `is_active`, timestamps) are omitted.
 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/v1/storefront/categories` | Active categories for navigation |
 | GET | `/api/v1/storefront/plants` | Active catalogue with the same filters (minus `is_active`) |
 | GET | `/api/v1/storefront/plants/{slug}` | Detail by slug; active pot sizes only |
+
+The plant listing returns a complete catalogue card: `name` / `name_vi`, `description` / `description_vi`, `price` / `price_vi`, the shared `slug`, `stock`, `is_featured`, the category summary and the plant's `images` ordered by `sort_order`. Media is eager-loaded with one extra query per page, so the homepage renders without a detail call per plant. The detail endpoint still reports availability as `in_stock` rather than an exact count.
 
 Admin detail uses UUIDs (`/api/v1/plants/{plant_id}`) and the storefront uses slugs, so the two never collide on one route.
 

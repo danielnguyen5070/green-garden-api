@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.text import normalize_slug, normalize_sku
 from app.schemas.category import CategorySummary
-from app.schemas.plant_image import PlantImageResponse
+from app.schemas.plant_image import PlantImageResponse, PublicPlantImage
 from app.schemas.plant_pot_size import PlantPotSizeResponse
 
 __all__ = [
@@ -185,7 +185,11 @@ class PlantListResponse(BaseModel):
 
 
 class PublicPlantListItem(BaseModel):
-    """Storefront listing row — no SKU / stock bookkeeping fields."""
+    """Storefront listing row — card data for the homepage, no SKU bookkeeping.
+
+    Carries the copy, pricing and media the catalogue renders, so a listing
+    never has to fetch each plant's detail endpoint.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -193,10 +197,14 @@ class PublicPlantListItem(BaseModel):
     name: str
     name_vi: str | None
     slug: str
+    description: str | None
+    description_vi: str | None
     price: Decimal
     price_vi: Decimal | None
+    stock: int
     is_featured: bool
     category: CategorySummary | None = None
+    images: list[PublicPlantImage] = []
 
 
 class PublicPlantListResponse(BaseModel):

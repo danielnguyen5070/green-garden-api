@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.text import normalize_slug
+from app.models.plant import Plant
+from app.models.plant_image import PlantImage
 from app.schemas.category import (
     PublicCategoryListItem,
     PublicCategoryListResponse,
@@ -19,7 +21,7 @@ from app.schemas.plant import (
     PublicPlantListItem,
     PublicPlantListResponse,
 )
-from app.schemas.plant_image import PlantImageResponse
+from app.schemas.plant_image import PlantImageResponse, PublicPlantImage
 from app.schemas.plant_pot_size import PlantPotSizeResponse
 from app.services.category_service import list_categories
 from app.services.plant_service import (
@@ -31,6 +33,11 @@ from app.services.plant_service import (
 )
 
 router = APIRouter(prefix="/storefront", tags=["storefront"])
+
+
+def _sorted_images(plant: Plant) -> list[PlantImage]:
+    """Media in display order: `sort_order` first, oldest first on a tie."""
+    return sorted(plant.images, key=lambda image: (image.sort_order, image.created_at))
 
 
 @router.get(
@@ -67,6 +74,15 @@ async def get_public_categories(
     "/plants",
     response_model=PublicPlantListResponse,
     summary="List active plants (public)",
+    description=(
+        "Paginated storefront catalogue. Inactive plants are never returned.\n\n"
+        "Each row carries everything a catalogue card needs — English and "
+        "Vietnamese copy (`name` / `name_vi`, `description` / `description_vi`, "
+        "`price` / `price_vi`, one shared `slug`), `stock`, `is_featured`, the "
+        "category summary and the plant's media, ordered by `sort_order` "
+        "ascending — so the frontend never has to call the detail endpoint per "
+        "card. Images are loaded with one extra query for the whole page."
+    ),
 )
 async def get_public_plants(
     page: int = Query(default=1, ge=1),
@@ -93,9 +109,29 @@ async def get_public_plants(
         max_price=max_price,
         sort=sort,
         order=order,
+        with_images=True,
     )
     return PublicPlantListResponse(
-        items=[PublicPlantListItem.model_validate(item) for item in items],
+        items=[
+            PublicPlantListItem(
+                id=plant.id,
+                name=plant.name,
+                name_vi=plant.name_vi,
+                slug=plant.slug,
+                description=plant.description,
+                description_vi=plant.description_vi,
+                price=plant.price,
+                price_vi=plant.price_vi,
+                stock=plant.stock,
+                is_featured=plant.is_featured,
+                category=plant.category,
+                images=[
+                    PublicPlantImage.model_validate(image)
+                    for image in _sorted_images(plant)
+                ],
+            )
+            for plant in items
+        ],
         page=page,
         page_size=page_size,
         total=total,
@@ -137,7 +173,7 @@ async def get_public_plant_by_slug(
         category=plant.category,
         images=[
             PlantImageResponse.model_validate(image)
-            for image in sorted(plant.images, key=lambda i: (i.sort_order, i.created_at))
+            for image in _sorted_images(plant)
         ],
         pot_sizes=[
             PlantPotSizeResponse.model_validate(size)

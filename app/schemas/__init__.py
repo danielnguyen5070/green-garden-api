@@ -67,6 +67,7 @@ from app.schemas.plant_image import (
     PlantImageCreate,
     PlantImageResponse,
     PlantImageUpdate,
+    PublicPlantImage,
 )
 from app.schemas.plant_pot_size import (
     PlantPotSizeCreate,
@@ -123,6 +124,7 @@ __all__ = [
     "PublicCategoryListItem",
     "PublicCategoryListResponse",
     "PublicPlantDetail",
+    "PublicPlantImage",
     "PublicPlantListItem",
     "PublicPlantListResponse",
     "RecentOrder",

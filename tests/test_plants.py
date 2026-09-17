@@ -86,6 +86,25 @@ async def _seed_plant(
     return plant
 
 
+async def _seed_image(
+    session: AsyncSession,
+    plant: Plant,
+    **overrides: object,
+) -> PlantImage:
+    values: dict = {
+        "plant_id": plant.id,
+        "url": f"https://cdn.example.com/{uuid4().hex[:8]}.jpg",
+        "type": PlantImageType.IMAGE,
+        "sort_order": 0,
+    }
+    values.update(overrides)
+    image = PlantImage(**values)
+    session.add(image)
+    await session.commit()
+    await session.refresh(image)
+    return image
+
+
 # --------------------------------------------------------------------------
 # Authentication
 # --------------------------------------------------------------------------
@@ -1184,8 +1203,9 @@ async def test_public_list_hides_admin_fields(
     )
     for item in response.json()["items"]:
         assert "sku" not in item
-        assert "stock" not in item
         assert "is_active" not in item
+        assert "created_at" not in item
+        assert "updated_at" not in item
 
 
 @pytest.mark.asyncio
@@ -1217,6 +1237,169 @@ async def test_public_plants_return_vietnamese_fields(
     rows = listed.json()["items"]
     assert [row["name_vi"] for row in rows] == ["Cây Trầu Bà Nam Mỹ"]
     assert [Decimal(row["price_vi"]) for row in rows] == [Decimal("650000.00")]
+
+
+@pytest.mark.asyncio
+async def test_public_list_returns_card_fields(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    """The listing carries the copy the homepage renders, without a detail call."""
+    plant = await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        stock=7,
+        is_featured=True,
+        name_vi="Cây Trầu Bà Nam Mỹ",
+        description="A beautiful tropical indoor plant.",
+        description_vi="Một loại cây nhiệt đới đẹp.",
+        price=Decimal("250000.00"),
+        price_vi=Decimal("650000.00"),
+    )
+    await _seed_image(test_db_session, plant, url="https://cdn.example.com/a.jpg")
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/plants",
+        params={"search": plant.sku},
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 1
+    item = items[0]
+
+    assert item["id"] == str(plant.id)
+    assert item["name"] == plant.name
+    assert item["name_vi"] == "Cây Trầu Bà Nam Mỹ"
+    assert item["slug"] == plant.slug
+    assert item["description"] == "A beautiful tropical indoor plant."
+    assert item["description_vi"] == "Một loại cây nhiệt đới đẹp."
+    assert Decimal(item["price"]) == Decimal("250000.00")
+    assert Decimal(item["price_vi"]) == Decimal("650000.00")
+    assert item["stock"] == 7
+    assert item["is_featured"] is True
+    assert item["category"]["id"] == str(test_category.id)
+    assert len(item["images"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_public_list_orders_images_by_sort_order(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    plant = await _seed_plant(test_db_session, test_category, is_active=True)
+    # Inserted out of order on purpose.
+    await _seed_image(
+        test_db_session,
+        plant,
+        url="https://cdn.example.com/third.jpg",
+        sort_order=2,
+    )
+    await _seed_image(
+        test_db_session,
+        plant,
+        url="https://cdn.example.com/first.jpg",
+        alt_text="Front view",
+        sort_order=0,
+    )
+    await _seed_image(
+        test_db_session,
+        plant,
+        url="https://cdn.example.com/second.jpg",
+        sort_order=1,
+    )
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/plants",
+        params={"search": plant.sku},
+    )
+    images = response.json()["items"][0]["images"]
+
+    assert [image["sort_order"] for image in images] == [0, 1, 2]
+    assert [image["url"] for image in images] == [
+        "https://cdn.example.com/first.jpg",
+        "https://cdn.example.com/second.jpg",
+        "https://cdn.example.com/third.jpg",
+    ]
+    assert images[0]["alt_text"] == "Front view"
+    assert images[1]["alt_text"] is None
+    assert set(images[0]) == {"id", "url", "type", "alt_text", "sort_order"}
+
+
+@pytest.mark.asyncio
+async def test_public_list_images_belong_to_their_own_plant(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    with_media = await _seed_plant(test_db_session, test_category, is_active=True)
+    without_media = await _seed_plant(test_db_session, test_category, is_active=True)
+    await _seed_image(
+        test_db_session,
+        with_media,
+        url="https://cdn.example.com/only.jpg",
+    )
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/plants",
+        params={"category_id": str(test_category.id), "page_size": 100},
+    )
+    images_by_plant = {
+        item["id"]: item["images"] for item in response.json()["items"]
+    }
+
+    assert [image["url"] for image in images_by_plant[str(with_media.id)]] == [
+        "https://cdn.example.com/only.jpg"
+    ]
+    # A plant without media returns an empty list, never `null`.
+    assert images_by_plant[str(without_media.id)] == []
+
+
+@pytest.mark.asyncio
+async def test_public_list_image_queries_do_not_grow_with_row_count(
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    """Storefront media is one extra query per page, not one per plant."""
+    for _ in range(5):
+        plant = await _seed_plant(test_db_session, test_category, is_active=True)
+        for sort_order in range(3):
+            await _seed_image(
+                test_db_session,
+                plant,
+                url=f"https://cdn.example.com/{uuid4().hex[:8]}.jpg",
+                sort_order=sort_order,
+            )
+
+    test_db_session.expunge_all()
+
+    statements: list[str] = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", _record)
+    try:
+        items, _ = await list_plants(
+            test_db_session,
+            page=1,
+            page_size=5,
+            category_id=test_category.id,
+            is_active=True,
+            with_images=True,
+        )
+        # Touch the collections the storefront serializes: already loaded, so
+        # a lazy load here would show up as an extra statement.
+        loaded = [len(plant.images) for plant in items]
+    finally:
+        event.remove(Engine, "before_cursor_execute", _record)
+
+    assert len(items) == 5
+    assert loaded == [3, 3, 3, 3, 3]
+    # count + rows + categories + images
+    assert len(statements) == 4
 
 
 @pytest.mark.asyncio
