@@ -1,4 +1,10 @@
-"""Public storefront routes. No authentication; only active plants are exposed."""
+"""Public storefront routes: the catalogue and the cash-on-delivery checkout.
+
+No authentication anywhere here. Only active plants are exposed, and checkout
+reuses `app.services.order_service` — the same validation, snapshots and stock
+movements as the admin panel, priced from the Vietnamese catalogue columns and
+with the storefront shipping fee on top.
+"""
 
 from __future__ import annotations
 
@@ -21,9 +27,20 @@ from app.schemas.plant import (
     PublicPlantListItem,
     PublicPlantListResponse,
 )
+from app.schemas.order import StorefrontOrderCreate, StorefrontOrderResponse
 from app.schemas.plant_image import PlantImageResponse, PublicPlantImage
 from app.schemas.plant_pot_size import PlantPotSizeResponse
 from app.services.category_service import list_categories
+from app.services.customer_service import CustomerInactiveError
+from app.services.order_service import (
+    InsufficientStockError,
+    OrderItemInput,
+    OrderPricing,
+    OrderTotalTooLargeError,
+    PlantUnavailableError,
+    PotSizeUnavailableError,
+    create_order,
+)
 from app.services.plant_service import (
     PlantNotFoundError,
     SortField,
@@ -181,3 +198,85 @@ async def get_public_plant_by_slug(
             if size.is_active
         ],
     )
+
+
+@router.post(
+    "/orders",
+    response_model=StorefrontOrderResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a public customer order",
+    description=(
+        "Public cash-on-delivery checkout. **No authentication**: shoppers have "
+        "no account and never log in, and no payment information is collected "
+        "or stored.\n\n"
+        "The customer is identified by phone, normalized to the canonical "
+        "Vietnamese form first (`+84901234567` and `84901234567` both become "
+        "`0901234567`), so the same shopper is never duplicated. A known "
+        "number reuses the existing customer (keeping the name already on "
+        "file), an unknown one creates a customer.\n\n"
+        "Everything is priced from the Vietnamese catalogue: item names come "
+        "from `plants.name_vi` (falling back to `name`), unit prices from "
+        "`plants.price_vi` plus the selected pot size's `price_adjustment_vi`. "
+        "The subtotal is the sum of `unit_price × quantity`, shipping is "
+        "50,000 VND unless the subtotal is above 500,000 VND, and "
+        "`total_amount` is subtotal plus shipping — prices or totals in the "
+        "request body are ignored.\n\n"
+        "Customer, order, item snapshots and the stock deduction commit in one "
+        "transaction with the plant rows locked, so a rejected line leaves no "
+        "partial order and no stock movement behind. New orders start as "
+        "`pending`; the shop moves them on from the admin panel."
+    ),
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Order total too large, or the customer is deactivated"
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Plant or selected pot size does not exist"
+        },
+        status.HTTP_409_CONFLICT: {
+            "description": (
+                "Insufficient stock, or the plant is not on sale in the "
+                "Vietnamese storefront"
+            )
+        },
+    },
+)
+async def post_storefront_order(
+    payload: StorefrontOrderCreate,
+    db: AsyncSession = Depends(get_db),
+) -> StorefrontOrderResponse:
+    try:
+        order = await create_order(
+            db,
+            customer_phone=payload.customer.phone,
+            customer_name=payload.customer.name,
+            customer_email=None,
+            shipping_address=payload.shipping_address,
+            note=payload.note,
+            items=[
+                OrderItemInput(
+                    plant_id=item.plant_id,
+                    quantity=item.quantity,
+                    pot_size=item.pot_size,
+                )
+                for item in payload.items
+            ],
+            pricing=OrderPricing.STOREFRONT,
+        )
+    except (PlantNotFoundError, PotSizeUnavailableError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except (InsufficientStockError, PlantUnavailableError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except (CustomerInactiveError, OrderTotalTooLargeError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return StorefrontOrderResponse.model_validate(order)

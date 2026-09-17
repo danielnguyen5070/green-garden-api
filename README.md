@@ -172,7 +172,7 @@ Admin-only (access cookie). Orders are historical business records: there is no 
 
 Key rules:
 
-- **The backend owns the money.** `unit_price = plant.price + pot_size.price_adjustment` and `total_amount = sum(unit_price × quantity)`, all in `Decimal` / `NUMERIC(12,2)`. Prices or totals sent by the client are ignored.
+- **The backend owns the money.** `unit_price = plant.price + pot_size.price_adjustment` and `total_amount = sum(unit_price × quantity)`, all in `Decimal` / `NUMERIC(12,2)`. Prices or totals sent by the client are ignored. The public storefront prices the same order from the Vietnamese columns and adds a shipping fee — see [Public storefront](#public-storefront).
 - **Items are snapshots.** `plant_name`, `unit_price` and `pot_size` are copied at purchase time, so renaming, repricing, deactivating or retiring a plant never rewrites an existing order.
 - **One transaction.** Customer upsert, order, items and stock deduction commit together, with the plant rows locked so concurrent checkouts cannot oversell. Insufficient stock returns `400` and writes nothing.
 - **Customers by phone.** A known phone reuses the existing customer (their stored name is preserved); an unknown phone creates one.
@@ -215,10 +215,19 @@ No authentication. Only active records are exposed, and admin fields (`sku`, `is
 | GET | `/api/v1/storefront/categories` | Active categories for navigation |
 | GET | `/api/v1/storefront/plants` | Active catalogue with the same filters (minus `is_active`) |
 | GET | `/api/v1/storefront/plants/{slug}` | Detail by slug; active pot sizes only |
+| POST | `/api/v1/storefront/orders` | Public cash-on-delivery checkout |
 
 The plant listing returns a complete catalogue card: `name` / `name_vi`, `description` / `description_vi`, `price` / `price_vi`, the shared `slug`, `stock`, `is_featured`, the category summary and the plant's `images` ordered by `sort_order`. Media is eager-loaded with one extra query per page, so the homepage renders without a detail call per plant. The detail endpoint still reports availability as `in_stock` rather than an exact count.
 
 Admin detail uses UUIDs (`/api/v1/plants/{plant_id}`) and the storefront uses slugs, so the two never collide on one route.
+
+Checkout collects a name, phone, shipping address, optional note and the cart lines — no email, no account, no payment details, because the shop is cash on delivery. It runs through the same `order_service.create_order` as the admin panel, so the validation, item snapshots, the single transaction and the stock locking are identical, and prices or totals in the request body are ignored. Insufficient stock or an unavailable plant answers `409`, an unknown plant or pot size `404`. The confirmation returns only the order number, status, total and timestamp.
+
+The storefront prices differently from the admin panel, because it sells the Vietnamese catalogue:
+
+- **Vietnamese product data.** `plant_name` is `name_vi` (falling back to `name` when empty) and `unit_price` is `price_vi` plus the pot size's `price_adjustment_vi`, treating a missing adjustment as `0`. The default-locale `price` / `price_adjustment` columns are never used here; a plant without a `price_vi` cannot be sold and answers `409`.
+- **Shipping is folded into the total.** `subtotal` is the sum of `unit_price × quantity`, shipping is 50,000 VND unless the subtotal is **above** 500,000 VND, and `total_amount = subtotal + shipping_fee`. Exactly 500,000 VND still pays the fee. There is no shipping table and no `shipping_fee` column.
+- **One customer per phone.** The phone is normalized to its canonical Vietnamese form before the lookup, so `+84901234567`, `84901234567` and `0901234567` are the same shopper rather than three customers.
 
 ```bash
 curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa

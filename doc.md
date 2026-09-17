@@ -1384,7 +1384,7 @@ line_total   = unit_price × quantity
 total_amount = sum(line_total)
 ```
 
-All arithmetic uses `Decimal` / `NUMERIC(12,2)`. Prices come from the default-locale `price` / `price_adjustment` columns.
+All arithmetic uses `Decimal` / `NUMERIC(12,2)`. Prices come from the default-locale `price` / `price_adjustment` columns, and no shipping fee is added — that is a storefront rule, see [`POST /api/v1/storefront/orders`](#post-apiv1storefrontorders).
 
 **Stock and transaction.** Stock is verified and deducted inside the same transaction as the customer upsert, the order and the item snapshots, with the plant rows locked (`SELECT ... FOR UPDATE`) so concurrent checkouts cannot oversell. If any line fails, nothing is written at all: no order, no customer, no stock movement. Stock never goes negative, and quantities are summed per plant when the same plant appears on several lines.
 
@@ -1702,6 +1702,91 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 
 ---
 
+### `POST /api/v1/storefront/orders`
+
+Public cash-on-delivery checkout. **No authentication** — shoppers have no account and never log in. No payment information is collected or stored: the shop takes the money on delivery, so there is no payment table, no `payment_method` column and no `payment_status`.
+
+The checkout form only collects a name, a phone number, the shipping address, an optional note and the cart lines. There is no email, no password and no account.
+
+**Request body**
+
+```json
+{
+  "customer": {
+    "name": "Nguyễn Văn A",
+    "phone": "0901234567"
+  },
+  "shipping_address": "123 Nguyễn Huệ, Quận 1, TP.HCM",
+  "note": "Giao giờ hành chính",
+  "items": [
+    {
+      "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "quantity": 1,
+      "pot_size": "Chậu 20cm"
+    }
+  ]
+}
+```
+
+| Field | Rules |
+|---|---|
+| `customer.name` | Required, trimmed, at most 255 characters |
+| `customer.phone` | Required, trimmed, same validation as every other customer phone, then normalized to the canonical Vietnamese form. It is the customer identity |
+| `shipping_address` | Required, trimmed, at most 1000 characters. Stored as a snapshot on the order |
+| `note` | Optional, trimmed, at most 1000 characters |
+| `items` | 1–50 lines; `plant_id` UUID, `quantity` integer `>= 1`, `pot_size` optional |
+
+**Vietnamese product data only.** The storefront sells the Vietnamese catalogue, so the default-locale `name`, `price` and `price_adjustment` columns are never used to price a checkout:
+
+```
+plant_name   = plant.name_vi (falling back to plant.name when empty)
+unit_price   = plant.price_vi + pot_size.price_adjustment_vi
+subtotal     = sum(unit_price × quantity)
+shipping_fee = 0 if subtotal > 500000 else 50000
+total_amount = subtotal + shipping_fee
+```
+
+A `NULL` `price_adjustment_vi` costs nothing extra. A plant without a `price_vi` cannot be priced at all and is rejected with `409` rather than sold at its default-locale price. All arithmetic uses `Decimal` / `NUMERIC(12,2)`.
+
+**Shipping.** There is no shipping table and no `shipping_fee` column: the fee is folded into `orders.total_amount`. Free shipping starts *above* 500,000 VND, so a subtotal of exactly 500,000 VND still pays the 50,000 VND fee (total 550,000 VND), while 500,001 VND ships free.
+
+**Prices sent by the client are ignored.** Extra fields such as `unit_price`, `subtotal`, `shipping_fee` or `total_amount` in the request body are discarded; everything is calculated from the database.
+
+**Customer:** the phone decides, after normalization to the canonical Vietnamese form — `+84901234567` and `84901234567` are both stored and looked up as `0901234567`, so the same shopper never becomes two customers. A known number reuses the existing customer and keeps the name already on file; an unknown number creates one. Customers never get credentials.
+
+**Transaction:** validation, pricing, customer upsert, order, item snapshots and the stock deduction all commit together, with the plant rows locked (`SELECT ... FOR UPDATE`) so two simultaneous checkouts cannot oversell. A rejected line leaves no partial order and no stock movement.
+
+**Response `201`**
+
+```json
+{
+  "id": "1c9d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
+  "order_number": "GG-20260917-0001",
+  "status": "pending",
+  "total_amount": "480000.00",
+  "created_at": "2026-09-17T06:30:00Z"
+}
+```
+
+`total_amount` already includes shipping — the example is a 430,000 VND subtotal plus the 50,000 VND fee. The confirmation carries nothing else — no customer record, no item detail, no admin fields. The shop follows the order up from the admin panel, where it appears immediately as `pending`.
+
+**Errors**
+
+| Status | When |
+|---|---|
+| `400` | The customer behind that phone is deactivated, or the total is too large to store |
+| `404` | `plant_id` does not exist, or the selected `pot_size` is unknown / no longer on sale |
+| `409` | Insufficient stock, or the plant is not on sale in the Vietnamese storefront (inactive, or no `price_vi`) |
+| `422` | Invalid body: no items, more than 50 lines, `quantity < 1`, malformed UUID or phone, blank address |
+
+```bash
+curl -X POST http://localhost:8000/api/v1/storefront/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customer":{"name":"Nguyễn Văn A","phone":"0901234567"},"shipping_address":"123 Nguyễn Huệ, Quận 1, TP.HCM","items":[{"plant_id":"<plant-uuid>","quantity":1,"pot_size":"Chậu 20cm"}]}'
+```
+
+---
+
 ## Endpoint summary
 
 | Method | Path | Auth | Description |
@@ -1748,6 +1833,7 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 | `GET` | `/api/v1/storefront/categories` | No | Public active categories |
 | `GET` | `/api/v1/storefront/plants` | No | Public active catalogue |
 | `GET` | `/api/v1/storefront/plants/{slug}` | No | Public plant detail by slug |
+| `POST` | `/api/v1/storefront/orders` | No | Public COD checkout (Vietnamese pricing, shipping fee, stock deduction) |
 
 ---
 
@@ -1768,5 +1854,6 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 - Customers and orders are never hard-deleted; customers are retired with `/status` and orders only change `status`
 - Order totals and unit prices are always calculated server-side; money in the request body is ignored
 - Stock deduction and order creation share one transaction, and cancellation restores stock exactly once
-- No payment table and no payment endpoints exist
+- No payment table and no payment endpoints exist; the storefront checkout is cash on delivery and stores no payment information
+- The public checkout creates orders but can never read them: order history is admin-only, and the confirmation returns only the order number, status, total and timestamp
 - `/api/v1/overview` is admin-only and read-only: it never writes, and it only ever reports revenue for `completed` orders
