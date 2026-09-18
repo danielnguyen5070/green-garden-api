@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,10 +38,22 @@ class Settings(BaseSettings):
     auth_access_cookie_name: str = "gg_access_token"
     auth_refresh_cookie_name: str = "gg_refresh_token"
     auth_cookie_path: str = "/"
+    # Shared parent domain for cross-subdomain cookies (e.g. .ngocnganbentre.vn).
+    # Leave unset/empty for host-only cookies (local development).
     auth_cookie_domain: str | None = None
 
     # CORS — comma-separated Next.js origins (parsed to a list)
     cors_origins: str = "http://localhost:3000"
+
+    @field_validator("auth_cookie_domain", mode="before")
+    @classmethod
+    def _normalize_auth_cookie_domain(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return value  # type: ignore[return-value]
 
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

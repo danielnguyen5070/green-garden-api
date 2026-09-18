@@ -246,6 +246,7 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh JWT lifetime |
 | `AUTH_COOKIE_SECURE` | `true` in production (HTTPS) |
 | `AUTH_COOKIE_SAMESITE` | `lax` / `strict` / `none` |
+| `AUTH_COOKIE_DOMAIN` | Shared parent domain (e.g. `.ngocnganbentre.vn`); empty = host-only |
 | `CORS_ORIGINS` | Comma-separated Next.js origins |
 
 Do not commit `.env`. Never use `allow_origins=["*"]` with cookie credentials.
