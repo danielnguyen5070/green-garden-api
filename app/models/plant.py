@@ -51,6 +51,7 @@ class Plant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     description_vi: Mapped[str | None] = mapped_column(Text, nullable=True)
+    og_image_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     price_vi: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     stock: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)

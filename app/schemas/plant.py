@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
 
 from app.core.text import normalize_slug, normalize_sku
 from app.schemas.category import CategorySummary
@@ -34,6 +34,7 @@ class PlantCreate(BaseModel):
     slug: str = Field(min_length=1, max_length=255)
     description: str | None = None
     description_vi: str | None = None
+    og_image_url: AnyHttpUrl | None = None
     price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     price_vi: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     stock: int = Field(default=0, ge=0)
@@ -73,6 +74,15 @@ class PlantCreate(BaseModel):
             raise ValueError("SKU is required")
         return normalized
 
+    @field_validator("og_image_url")
+    @classmethod
+    def og_image_url_within_column_length(
+        cls, value: AnyHttpUrl | None
+    ) -> AnyHttpUrl | None:
+        if value is not None and len(str(value)) > 1024:
+            raise ValueError("OG image URL must be at most 1024 characters")
+        return value
+
 
 class PlantUpdate(BaseModel):
     category_id: UUID | None = None
@@ -81,6 +91,7 @@ class PlantUpdate(BaseModel):
     slug: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     description_vi: str | None = None
+    og_image_url: AnyHttpUrl | None = None
     price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     price_vi: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     stock: int | None = Field(default=None, ge=0)
@@ -126,6 +137,15 @@ class PlantUpdate(BaseModel):
             raise ValueError("SKU cannot be empty")
         return normalized
 
+    @field_validator("og_image_url")
+    @classmethod
+    def og_image_url_within_column_length(
+        cls, value: AnyHttpUrl | None
+    ) -> AnyHttpUrl | None:
+        if value is not None and len(str(value)) > 1024:
+            raise ValueError("OG image URL must be at most 1024 characters")
+        return value
+
 
 class PlantStatusUpdate(BaseModel):
     is_active: bool
@@ -142,6 +162,7 @@ class PlantListItem(BaseModel):
     name: str
     name_vi: str | None
     slug: str
+    og_image_url: str | None
     price: Decimal
     price_vi: Decimal | None
     stock: int
@@ -165,6 +186,7 @@ class PlantResponse(BaseModel):
     slug: str
     description: str | None
     description_vi: str | None
+    og_image_url: str | None
     price: Decimal
     price_vi: Decimal | None
     stock: int
@@ -199,6 +221,7 @@ class PublicPlantListItem(BaseModel):
     slug: str
     description: str | None
     description_vi: str | None
+    og_image_url: str | None
     price: Decimal
     price_vi: Decimal | None
     stock: int
@@ -225,6 +248,7 @@ class PublicPlantDetail(BaseModel):
     slug: str
     description: str | None
     description_vi: str | None
+    og_image_url: str | None
     price: Decimal
     price_vi: Decimal | None
     is_featured: bool

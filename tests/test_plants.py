@@ -163,9 +163,78 @@ async def test_create_plant_success(
     assert body["stock"] == 20
     assert body["is_featured"] is True
     assert body["is_active"] is True
+    assert body["og_image_url"] is None
     assert body["category"]["id"] == str(test_category.id)
     assert body["images"] == []
     assert body["pot_sizes"] == []
+
+
+@pytest.mark.asyncio
+async def test_create_plant_with_og_image_url(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    url = "https://cdn.example.com/plants/monstera-og.jpg"
+    body = await _create_plant(client, test_category, og_image_url=url)
+    assert body["og_image_url"] == url
+
+
+@pytest.mark.asyncio
+async def test_create_plant_invalid_og_image_url(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    response = await client.post(
+        PLANTS_PREFIX,
+        json=_plant_payload(test_category, og_image_url="not-a-url"),
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_plant_og_image_url_and_clear(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(
+        client,
+        test_category,
+        og_image_url="https://cdn.example.com/plants/old-og.jpg",
+    )
+    assert created["og_image_url"] == "https://cdn.example.com/plants/old-og.jpg"
+
+    updated = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={"og_image_url": "https://cdn.example.com/plants/new-og.jpg"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["og_image_url"] == "https://cdn.example.com/plants/new-og.jpg"
+
+    cleared = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={"og_image_url": None},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["og_image_url"] is None
+
+    # Omitting the field leaves the previous value
+    restored = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={"og_image_url": "https://cdn.example.com/plants/kept-og.jpg"},
+    )
+    assert restored.status_code == 200
+    omitted = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={"name": created["name"]},
+    )
+    assert omitted.status_code == 200
+    assert omitted.json()["og_image_url"] == "https://cdn.example.com/plants/kept-og.jpg"
 
 
 @pytest.mark.asyncio
@@ -1157,9 +1226,37 @@ async def test_public_plant_detail_is_accessible_without_auth(
     body = response.json()
     assert body["slug"] == plant.slug
     assert body["in_stock"] is True
+    assert body["og_image_url"] is None
     assert body["category"]["id"] == str(test_category.id)
     assert "sku" not in body
     assert "is_active" not in body
+
+
+@pytest.mark.asyncio
+async def test_public_plants_return_og_image_url(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    url = "https://cdn.example.com/plants/og-preview.jpg"
+    plant = await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        og_image_url=url,
+    )
+
+    detail = await client.get(f"{STOREFRONT_PREFIX}/plants/{plant.slug}")
+    assert detail.status_code == 200
+    assert detail.json()["og_image_url"] == url
+
+    listed = await client.get(
+        f"{STOREFRONT_PREFIX}/plants",
+        params={"category_id": str(test_category.id)},
+    )
+    assert listed.status_code == 200
+    row = next(item for item in listed.json()["items"] if item["id"] == str(plant.id))
+    assert row["og_image_url"] == url
 
 
 @pytest.mark.asyncio
