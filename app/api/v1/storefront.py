@@ -18,19 +18,26 @@ from app.core.database import get_db
 from app.core.text import normalize_slug
 from app.models.plant import Plant
 from app.models.plant_image import PlantImage
+from app.models.review import ReviewStatus
 from app.schemas.category import (
     PublicCategoryListItem,
     PublicCategoryListResponse,
 )
+from app.schemas.order import StorefrontOrderCreate, StorefrontOrderResponse
 from app.schemas.plant import (
     PublicPlantDetail,
     PublicPlantListItem,
     PublicPlantListResponse,
     PublicPlantSearchResponse,
 )
-from app.schemas.order import StorefrontOrderCreate, StorefrontOrderResponse
 from app.schemas.plant_image import PlantImageResponse, PublicPlantImage
 from app.schemas.plant_pot_size import PlantPotSizeResponse
+from app.schemas.review import (
+    PublicReviewListItem,
+    PublicReviewListResponse,
+    ReviewCreate,
+    ReviewResponse,
+)
 from app.services.category_service import list_categories
 from app.services.customer_service import CustomerInactiveError
 from app.services.order_service import (
@@ -51,6 +58,7 @@ from app.services.plant_service import (
     list_plants,
     search_plants,
 )
+from app.services.review_service import create_review, list_reviews
 
 router = APIRouter(prefix="/storefront", tags=["storefront"])
 
@@ -88,6 +96,58 @@ async def get_public_categories(
         page_size=page_size,
         total=total,
     )
+
+
+@router.get(
+    "/reviews",
+    response_model=PublicReviewListResponse,
+    summary="List approved reviews (public)",
+    description=(
+        "Paginated website-wide customer reviews. Only `approved` reviews are "
+        "returned. Ordered by `created_at` descending."
+    ),
+)
+async def get_public_reviews(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> PublicReviewListResponse:
+    items, total = await list_reviews(
+        db,
+        page=page,
+        page_size=page_size,
+        status=ReviewStatus.APPROVED,
+    )
+    return PublicReviewListResponse(
+        items=[PublicReviewListItem.model_validate(item) for item in items],
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
+
+
+@router.post(
+    "/reviews",
+    response_model=ReviewResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit a review (public)",
+    description=(
+        "Submit a website-wide customer review without authentication. The "
+        "review is stored as `pending` and does not appear publicly until an "
+        "admin approves it."
+    ),
+)
+async def post_public_review(
+    payload: ReviewCreate,
+    db: AsyncSession = Depends(get_db),
+) -> ReviewResponse:
+    review = await create_review(
+        db,
+        name=payload.name,
+        rating=payload.rating,
+        content=payload.content,
+    )
+    return ReviewResponse.model_validate(review)
 
 
 @router.get(

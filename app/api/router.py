@@ -7,6 +7,7 @@ from app.api.v1 import customers as customers_router
 from app.api.v1 import orders as orders_router
 from app.api.v1 import overview as overview_router
 from app.api.v1 import plants as plants_router
+from app.api.v1 import reviews as reviews_router
 from app.api.v1 import storefront as storefront_router
 
 api_router = APIRouter(prefix="/api/v1")
@@ -17,4 +18,5 @@ api_router.include_router(plants_router.router)
 api_router.include_router(customers_router.router)
 api_router.include_router(orders_router.router)
 api_router.include_router(overview_router.router)
+api_router.include_router(reviews_router.router)
 api_router.include_router(storefront_router.router)

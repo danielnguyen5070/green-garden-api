@@ -78,6 +78,15 @@ from app.schemas.plant_pot_size import (
     PlantPotSizeResponse,
     PlantPotSizeUpdate,
 )
+from app.schemas.review import (
+    PublicReviewListItem,
+    PublicReviewListResponse,
+    ReviewCreate,
+    ReviewListItem,
+    ReviewListResponse,
+    ReviewResponse,
+    ReviewStatusUpdate,
+)
 
 __all__ = [
     "AdminCreate",
@@ -132,8 +141,15 @@ __all__ = [
     "PublicPlantListItem",
     "PublicPlantListResponse",
     "PublicPlantSearchResponse",
+    "PublicReviewListItem",
+    "PublicReviewListResponse",
     "RecentOrder",
     "RevenueByDay",
+    "ReviewCreate",
+    "ReviewListItem",
+    "ReviewListResponse",
+    "ReviewResponse",
+    "ReviewStatusUpdate",
     "SalesOverview",
     "SalesPeriodStats",
     "StorefrontOrderCreate",

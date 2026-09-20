@@ -9,6 +9,7 @@ from app.models.order_item import OrderItem
 from app.models.plant import Plant
 from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
+from app.models.review import Review, ReviewStatus
 
 __all__ = [
     "Base",
@@ -22,4 +23,6 @@ __all__ = [
     "PlantImage",
     "PlantImageType",
     "PlantPotSize",
+    "Review",
+    "ReviewStatus",
 ]
