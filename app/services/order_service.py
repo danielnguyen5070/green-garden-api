@@ -34,6 +34,7 @@ from app.models.order_item import OrderItem
 from app.models.plant import Plant
 from app.models.plant_pot_size import PlantPotSize
 from app.services.customer_service import resolve_customer_for_order
+from app.services.notification_service import queue_new_order_notification
 from app.services.plant_service import PlantNotFoundError
 
 _ORDER_NUMBER_PREFIX = "GG"
@@ -403,6 +404,14 @@ async def create_order(
 
         for plant_id, quantity in requested.items():
             plants[plant_id].stock -= quantity
+
+        if pricing is OrderPricing.STOREFRONT:
+            queue_new_order_notification(
+                session,
+                order_id=order.id,
+                order_number=order.order_number,
+                customer_name=customer.name,
+            )
 
         await session.commit()
     except Exception:

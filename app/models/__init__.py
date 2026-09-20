@@ -10,6 +10,7 @@ from app.models.plant import Plant
 from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
 from app.models.review import Review, ReviewStatus
+from app.models.notification import Notification, NotificationType
 
 __all__ = [
     "Base",
@@ -25,4 +26,6 @@ __all__ = [
     "PlantPotSize",
     "Review",
     "ReviewStatus",
+    "Notification",
+    "NotificationType",
 ]

@@ -15,6 +15,7 @@ EXPECTED_TABLES = {
     "orders",
     "order_items",
     "reviews",
+    "notifications",
 }
 
 
