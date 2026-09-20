@@ -9,11 +9,27 @@ _SLUG_INVALID = re.compile(r"[^a-z0-9-]")
 _SLUG_DASHES = re.compile(r"-{2,}")
 _PHONE_WHITESPACE = re.compile(r"\s+")
 _PHONE_SEPARATORS = re.compile(r"[\s().-]+")
+# LIKE / ILIKE treat `\`, `%` and `_` as metacharacters when an escape char is set.
+_ILIKE_META = re.compile(r"([\\%_])")
 
 _VN_COUNTRY_CODE = "84"
 # A Vietnamese subscriber number is 9 digits behind the trunk `0` / the `84`
 # country code, so `84` + 9 digits is the only bare form we dare to rewrite.
 _VN_NATIONAL_DIGITS = 9
+
+
+def normalize_search_query(query: str) -> str:
+    """Trim user search input. Whitespace-only becomes an empty string."""
+    return query.strip()
+
+
+def escape_ilike_pattern(value: str) -> str:
+    """
+    Escape `\\`, `%` and `_` so a user keyword is matched literally under ILIKE.
+
+    Pair with `Column.ilike(pattern, escape="\\\\")` (a single backslash escape).
+    """
+    return _ILIKE_META.sub(r"\\\1", value)
 
 
 def normalize_slug(slug: str) -> str:

@@ -26,6 +26,7 @@ from app.schemas.plant import (
     PublicPlantDetail,
     PublicPlantListItem,
     PublicPlantListResponse,
+    PublicPlantSearchResponse,
 )
 from app.schemas.order import StorefrontOrderCreate, StorefrontOrderResponse
 from app.schemas.plant_image import PlantImageResponse, PublicPlantImage
@@ -43,10 +44,12 @@ from app.services.order_service import (
 )
 from app.services.plant_service import (
     PlantNotFoundError,
+    SearchLocale,
     SortField,
     SortOrder,
     get_plant_by_slug,
     list_plants,
+    search_plants,
 )
 
 router = APIRouter(prefix="/storefront", tags=["storefront"])
@@ -153,6 +156,63 @@ async def get_public_plants(
         page=page,
         page_size=page_size,
         total=total,
+    )
+
+
+@router.get(
+    "/plants/search",
+    response_model=PublicPlantSearchResponse,
+    summary="Search active plants (public)",
+    description=(
+        "Keyword search over the active storefront catalogue. Matching is "
+        "partial and case-insensitive; LIKE metacharacters in `q` are treated "
+        "literally.\n\n"
+        "`locale` selects which copy columns to search: `en` matches `name` / "
+        "`description`, `vi` matches `name_vi` / `description_vi`. An empty or "
+        "whitespace-only `q` returns zero results rather than the full "
+        "catalogue. Results are capped by `limit` (default 20, max 100)."
+    ),
+)
+async def search_public_plants(
+    q: str = Query(default="", max_length=255, description="Search keyword"),
+    locale: SearchLocale = Query(
+        default="vi",
+        description="Which locale fields to search (`vi` or `en`)",
+    ),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> PublicPlantSearchResponse:
+    """Locale-aware storefront search. Inactive plants are never returned."""
+    query, items, total = await search_plants(
+        db,
+        query=q,
+        locale=locale,
+        limit=limit,
+    )
+    return PublicPlantSearchResponse(
+        query=query,
+        total=total,
+        items=[
+            PublicPlantListItem(
+                id=plant.id,
+                name=plant.name,
+                name_vi=plant.name_vi,
+                slug=plant.slug,
+                description=plant.description,
+                description_vi=plant.description_vi,
+                og_image_url=plant.og_image_url,
+                price=plant.price,
+                price_vi=plant.price_vi,
+                stock=plant.stock,
+                is_featured=plant.is_featured,
+                category=plant.category,
+                images=[
+                    PublicPlantImage.model_validate(image)
+                    for image in _sorted_images(plant)
+                ],
+            )
+            for plant in items
+        ],
     )
 
 

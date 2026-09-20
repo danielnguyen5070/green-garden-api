@@ -1581,3 +1581,277 @@ async def test_public_detail_only_returns_active_pot_sizes(
     names = [size["name"] for size in response.json()["pot_sizes"]]
     assert names == ["Visible"]
     assert visible.status_code == 201
+
+
+# --------------------------------------------------------------------------
+# Public storefront search
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_public_search_vietnamese_fields(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    marker = uuid4().hex[:8]
+    plant = await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        name=f"English Only {marker}",
+        name_vi=f"Cây Trầu Bà {marker}",
+        description="English description without the Vietnamese keyword.",
+        description_vi=f"Mô tả nhiệt đới {marker}.",
+        price_vi=Decimal("650000.00"),
+    )
+    await _seed_image(test_db_session, plant, url="https://cdn.example.com/vi.jpg")
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/search",
+        params={"q": f"Trầu Bà {marker}", "locale": "vi"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["query"] == f"Trầu Bà {marker}"
+    assert body["total"] == 1
+    assert len(body["items"]) == 1
+    item = body["items"][0]
+    assert item["id"] == str(plant.id)
+    assert item["slug"] == plant.slug
+    assert item["name_vi"] == f"Cây Trầu Bà {marker}"
+    assert item["description_vi"] == f"Mô tả nhiệt đới {marker}."
+    assert Decimal(item["price_vi"]) == Decimal("650000.00")
+    assert len(item["images"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_public_search_english_fields(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    marker = uuid4().hex[:8]
+    plant = await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        name=f"Monstera Deliciosa {marker}",
+        name_vi=f"Cây khác {marker}",
+        description=f"A tropical monstera {marker} for indoors.",
+        description_vi="Mô tả tiếng Việt không chứa từ khóa tiếng Anh.",
+    )
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/search",
+        params={"q": f"Monstera Deliciosa {marker}", "locale": "en"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["query"] == f"Monstera Deliciosa {marker}"
+    assert body["total"] == 1
+    assert body["items"][0]["id"] == str(plant.id)
+    assert body["items"][0]["name"] == f"Monstera Deliciosa {marker}"
+
+
+@pytest.mark.asyncio
+async def test_public_search_partial_keyword_matching(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    marker = uuid4().hex[:8]
+    plant = await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        name=f"ZZ Plant Super {marker}",
+        description=f"Hardy indoor zzplant-{marker} variety.",
+    )
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/search",
+        params={"q": f"zzplant-{marker}", "locale": "en"},
+    )
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["id"] == str(plant.id)
+
+
+@pytest.mark.asyncio
+async def test_public_search_is_case_insensitive(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    marker = uuid4().hex[:8]
+    plant = await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        name=f"Fiddle Leaf Fig {marker}",
+        description="Large green leaves.",
+    )
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/search",
+        params={"q": f"fiddle leaf fig {marker}", "locale": "en"},
+    )
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["id"] == str(plant.id)
+
+
+@pytest.mark.asyncio
+async def test_public_search_empty_keyword_returns_no_results(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    await _seed_plant(test_db_session, test_category, is_active=True)
+
+    for q in ("", "   ", "\t"):
+        response = await client.get(
+            f"{STOREFRONT_PREFIX}/plants/search",
+            params={"q": q, "locale": "en"},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["query"] == ""
+        assert body["total"] == 0
+        assert body["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_public_search_no_matching_results(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        name="Snake Plant",
+        name_vi="Cây Lưỡi Hổ",
+    )
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/search",
+        params={"q": f"no-such-plant-{uuid4().hex}", "locale": "en"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 0
+    assert body["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_public_search_excludes_inactive_plants(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    marker = uuid4().hex[:8]
+    inactive = await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=False,
+        name=f"Hidden Searchable {marker}",
+        name_vi=f"Ẩn Tìm Kiếm {marker}",
+    )
+    active = await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        name=f"Visible Searchable {marker}",
+        name_vi=f"Hiện Tìm Kiếm {marker}",
+    )
+
+    en = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/search",
+        params={"q": f"Searchable {marker}", "locale": "en"},
+    )
+    assert en.status_code == 200
+    en_ids = [item["id"] for item in en.json()["items"]]
+    assert str(active.id) in en_ids
+    assert str(inactive.id) not in en_ids
+
+    vi = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/search",
+        params={"q": f"Tìm Kiếm {marker}", "locale": "vi"},
+    )
+    assert vi.status_code == 200
+    vi_ids = [item["id"] for item in vi.json()["items"]]
+    assert str(active.id) in vi_ids
+    assert str(inactive.id) not in vi_ids
+
+
+@pytest.mark.asyncio
+async def test_public_search_rejects_invalid_locale(client: AsyncClient) -> None:
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/search",
+        params={"q": "monstera", "locale": "fr"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_public_search_locale_does_not_cross_match(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    """English keywords must not match Vietnamese-only copy, and vice versa."""
+    marker = uuid4().hex[:8]
+    await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        name=f"EnglishUniqueName {marker}",
+        name_vi=f"TenTiengVietDuyNhat {marker}",
+        description="plain english copy",
+        description_vi="ban sao tieng viet",
+    )
+
+    vi_miss = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/search",
+        params={"q": f"EnglishUniqueName {marker}", "locale": "vi"},
+    )
+    assert vi_miss.json()["total"] == 0
+
+    en_miss = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/search",
+        params={"q": f"TenTiengVietDuyNhat {marker}", "locale": "en"},
+    )
+    assert en_miss.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_public_search_treats_like_metacharacters_literally(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    marker = uuid4().hex[:8]
+    plant = await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        name=f"100% Humidity {marker}",
+        description="Safe under_score plant.",
+    )
+    await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        name=f"100X Humidity {marker}",
+    )
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/search",
+        params={"q": f"100% Humidity {marker}", "locale": "en"},
+    )
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["id"] == str(plant.id)

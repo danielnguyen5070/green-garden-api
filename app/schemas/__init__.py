@@ -65,6 +65,7 @@ from app.schemas.plant import (
     PublicPlantDetail,
     PublicPlantListItem,
     PublicPlantListResponse,
+    PublicPlantSearchResponse,
 )
 from app.schemas.plant_image import (
     PlantImageCreate,
@@ -130,6 +131,7 @@ __all__ = [
     "PublicPlantImage",
     "PublicPlantListItem",
     "PublicPlantListResponse",
+    "PublicPlantSearchResponse",
     "RecentOrder",
     "RevenueByDay",
     "SalesOverview",

@@ -10,6 +10,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
 
+from app.core.text import escape_ilike_pattern, normalize_search_query
 from app.models.category import Category
 from app.models.plant import Plant
 from app.models.plant_image import PlantImage, PlantImageType
@@ -18,6 +19,7 @@ from app.services.category_service import CategoryNotFoundError, get_category
 
 SortField = Literal["created_at", "name", "price", "stock"]
 SortOrder = Literal["asc", "desc"]
+SearchLocale = Literal["vi", "en"]
 
 _SORT_COLUMNS = {
     "created_at": Plant.created_at,
@@ -166,6 +168,55 @@ async def list_plants(
     )
     result = await session.execute(stmt)
     return list(result.scalars().all()), total
+
+
+async def search_plants(
+    session: AsyncSession,
+    *,
+    query: str,
+    locale: SearchLocale,
+    limit: int = 20,
+) -> tuple[str, list[Plant], int]:
+    """
+    Partial, case-insensitive storefront search over active plants only.
+
+    `locale` selects which copy columns to match:
+    - `en` → `name`, `description`
+    - `vi` → `name_vi`, `description_vi`
+
+    An empty / whitespace-only keyword returns no rows (never the full catalogue).
+    LIKE metacharacters in the keyword are escaped so they match literally.
+    """
+    normalized = normalize_search_query(query)
+    if not normalized:
+        return normalized, [], 0
+
+    pattern = f"%{escape_ilike_pattern(normalized)}%"
+    if locale == "vi":
+        match = or_(
+            Plant.name_vi.ilike(pattern, escape="\\"),
+            Plant.description_vi.ilike(pattern, escape="\\"),
+        )
+    else:
+        match = or_(
+            Plant.name.ilike(pattern, escape="\\"),
+            Plant.description.ilike(pattern, escape="\\"),
+        )
+
+    filters = (Plant.is_active.is_(True), match)
+
+    count_stmt = select(func.count()).select_from(Plant).where(*filters)
+    total = int((await session.execute(count_stmt)).scalar_one())
+
+    stmt = (
+        select(Plant)
+        .where(*filters)
+        .options(*_list_options(with_images=True))
+        .order_by(Plant.created_at.desc(), Plant.id)
+        .limit(limit)
+    )
+    result = await session.execute(stmt)
+    return normalized, list(result.scalars().all()), total
 
 
 async def get_plant(session: AsyncSession, plant_id: uuid.UUID) -> Plant:

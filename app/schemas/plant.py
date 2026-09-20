@@ -24,6 +24,7 @@ __all__ = [
     "PublicPlantDetail",
     "PublicPlantListItem",
     "PublicPlantListResponse",
+    "PublicPlantSearchResponse",
 ]
 
 
@@ -234,6 +235,14 @@ class PublicPlantListResponse(BaseModel):
     items: list[PublicPlantListItem]
     page: int
     page_size: int
+    total: int
+
+
+class PublicPlantSearchResponse(BaseModel):
+    """Storefront keyword search — same card rows as the catalogue list."""
+
+    query: str
+    items: list[PublicPlantListItem]
     total: int
 
 
