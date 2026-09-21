@@ -51,6 +51,9 @@ class Plant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     description_vi: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Long-form SEO copy; separate from the short catalogue `description`.
+    long_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    long_description_vi: Mapped[str | None] = mapped_column(Text, nullable=True)
     og_image_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     price_vi: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)

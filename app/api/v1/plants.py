@@ -164,6 +164,8 @@ async def post_plant(
             slug=payload.slug,
             description=payload.description,
             description_vi=payload.description_vi,
+            long_description=payload.long_description,
+            long_description_vi=payload.long_description_vi,
             og_image_url=(
                 str(payload.og_image_url) if payload.og_image_url is not None else None
             ),
@@ -201,6 +203,8 @@ async def patch_plant(
             slug=payload.slug,
             description=payload.description,
             description_vi=payload.description_vi,
+            long_description=payload.long_description,
+            long_description_vi=payload.long_description_vi,
             og_image_url=(
                 str(payload.og_image_url) if payload.og_image_url is not None else None
             ),
@@ -213,6 +217,10 @@ async def patch_plant(
             name_vi_provided="name_vi" in payload.model_fields_set,
             description_provided="description" in payload.model_fields_set,
             description_vi_provided="description_vi" in payload.model_fields_set,
+            long_description_provided="long_description" in payload.model_fields_set,
+            long_description_vi_provided=(
+                "long_description_vi" in payload.model_fields_set
+            ),
             og_image_url_provided="og_image_url" in payload.model_fields_set,
             price_vi_provided="price_vi" in payload.model_fields_set,
         )

@@ -304,6 +304,8 @@ async def get_public_plant_by_slug(
         slug=plant.slug,
         description=plant.description,
         description_vi=plant.description_vi,
+        long_description=plant.long_description,
+        long_description_vi=plant.long_description_vi,
         og_image_url=plant.og_image_url,
         price=plant.price,
         price_vi=plant.price_vi,

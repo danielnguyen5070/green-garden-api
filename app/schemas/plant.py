@@ -35,6 +35,8 @@ class PlantCreate(BaseModel):
     slug: str = Field(min_length=1, max_length=255)
     description: str | None = None
     description_vi: str | None = None
+    long_description: str | None = None
+    long_description_vi: str | None = None
     og_image_url: AnyHttpUrl | None = None
     price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     price_vi: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
@@ -51,7 +53,13 @@ class PlantCreate(BaseModel):
             raise ValueError("Name is required")
         return stripped
 
-    @field_validator("name_vi", "description", "description_vi")
+    @field_validator(
+        "name_vi",
+        "description",
+        "description_vi",
+        "long_description",
+        "long_description_vi",
+    )
     @classmethod
     def strip_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -92,6 +100,8 @@ class PlantUpdate(BaseModel):
     slug: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     description_vi: str | None = None
+    long_description: str | None = None
+    long_description_vi: str | None = None
     og_image_url: AnyHttpUrl | None = None
     price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     price_vi: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
@@ -110,7 +120,13 @@ class PlantUpdate(BaseModel):
             raise ValueError("Name cannot be empty")
         return stripped
 
-    @field_validator("name_vi", "description", "description_vi")
+    @field_validator(
+        "name_vi",
+        "description",
+        "description_vi",
+        "long_description",
+        "long_description_vi",
+    )
     @classmethod
     def strip_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -187,6 +203,8 @@ class PlantResponse(BaseModel):
     slug: str
     description: str | None
     description_vi: str | None
+    long_description: str | None
+    long_description_vi: str | None
     og_image_url: str | None
     price: Decimal
     price_vi: Decimal | None
@@ -257,6 +275,8 @@ class PublicPlantDetail(BaseModel):
     slug: str
     description: str | None
     description_vi: str | None
+    long_description: str | None
+    long_description_vi: str | None
     og_image_url: str | None
     price: Decimal
     price_vi: Decimal | None

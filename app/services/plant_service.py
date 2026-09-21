@@ -254,6 +254,8 @@ async def create_plant(
     slug: str,
     description: str | None,
     description_vi: str | None,
+    long_description: str | None,
+    long_description_vi: str | None,
     og_image_url: str | None,
     price: Decimal,
     price_vi: Decimal | None,
@@ -273,6 +275,8 @@ async def create_plant(
         slug=slug,
         description=description,
         description_vi=description_vi,
+        long_description=long_description,
+        long_description_vi=long_description_vi,
         og_image_url=og_image_url,
         price=price,
         price_vi=price_vi,
@@ -300,6 +304,8 @@ async def update_plant(
     slug: str | None = None,
     description: str | None = None,
     description_vi: str | None = None,
+    long_description: str | None = None,
+    long_description_vi: str | None = None,
     og_image_url: str | None = None,
     price: Decimal | None = None,
     price_vi: Decimal | None = None,
@@ -310,6 +316,8 @@ async def update_plant(
     name_vi_provided: bool = False,
     description_provided: bool = False,
     description_vi_provided: bool = False,
+    long_description_provided: bool = False,
+    long_description_vi_provided: bool = False,
     og_image_url_provided: bool = False,
     price_vi_provided: bool = False,
 ) -> Plant:
@@ -335,6 +343,10 @@ async def update_plant(
         plant.description = description
     if description_vi_provided:
         plant.description_vi = description_vi
+    if long_description_provided:
+        plant.long_description = long_description
+    if long_description_vi_provided:
+        plant.long_description_vi = long_description_vi
     if og_image_url_provided:
         plant.og_image_url = og_image_url
     if price is not None:

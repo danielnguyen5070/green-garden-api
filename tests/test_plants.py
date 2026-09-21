@@ -972,6 +972,90 @@ async def test_create_plant_without_vietnamese_fields(
     assert body["name_vi"] is None
     assert body["description_vi"] is None
     assert body["price_vi"] is None
+    assert body["long_description"] is None
+    assert body["long_description_vi"] is None
+
+
+@pytest.mark.asyncio
+async def test_create_plant_with_long_descriptions(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    long_en = ("Monstera care guide. " * 200).strip()
+    long_vi = ("Hướng dẫn chăm sóc trầu bà. " * 200).strip()
+    assert len(long_en) > 2000
+    assert len(long_vi) > 2000
+
+    body = await _create_plant(
+        client,
+        test_category,
+        long_description=f"  {long_en}  ",
+        long_description_vi=f"  {long_vi}  ",
+    )
+    assert body["long_description"] == long_en
+    assert body["long_description_vi"] == long_vi
+
+
+@pytest.mark.asyncio
+async def test_update_plant_long_descriptions_and_clear(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(
+        client,
+        test_category,
+        long_description="Initial long English SEO copy.",
+        long_description_vi="Mô tả SEO tiếng Việt dài.",
+    )
+
+    updated = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={
+            "long_description": "Updated long English SEO copy.",
+            "long_description_vi": "Mô tả SEO tiếng Việt đã cập nhật.",
+        },
+    )
+    assert updated.status_code == 200
+    assert updated.json()["long_description"] == "Updated long English SEO copy."
+    assert updated.json()["long_description_vi"] == "Mô tả SEO tiếng Việt đã cập nhật."
+    assert updated.json()["description"] == created["description"]
+
+    cleared = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={"long_description": None, "long_description_vi": None},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["long_description"] is None
+    assert cleared.json()["long_description_vi"] is None
+
+
+@pytest.mark.asyncio
+async def test_public_plant_detail_returns_long_descriptions(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    plant = await _seed_plant(
+        test_db_session,
+        test_category,
+        is_active=True,
+        long_description="Long English SEO content for the product page.",
+        long_description_vi="Nội dung SEO tiếng Việt dài cho trang sản phẩm.",
+    )
+
+    response = await client.get(f"{STOREFRONT_PREFIX}/plants/{plant.slug}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["long_description"] == (
+        "Long English SEO content for the product page."
+    )
+    assert body["long_description_vi"] == (
+        "Nội dung SEO tiếng Việt dài cho trang sản phẩm."
+    )
 
 
 @pytest.mark.asyncio
