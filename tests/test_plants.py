@@ -13,7 +13,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin import Admin
 from app.models.category import Category
-from app.models.plant import Plant
+from app.models.plant import (
+    Plant,
+    PlantDifficulty,
+    PlantGrowthRate,
+    PlantSpaceRequirement,
+    PlantSunlight,
+    PlantType,
+    PlantWatering,
+)
 from app.models.plant_image import PlantImage, PlantImageType
 from app.services.plant_service import get_plant, list_plants
 
@@ -974,6 +982,224 @@ async def test_create_plant_without_vietnamese_fields(
     assert body["price_vi"] is None
     assert body["long_description"] is None
     assert body["long_description_vi"] is None
+    assert body["plant_type"] is None
+    assert body["difficulty"] is None
+    assert body["growth_rate"] is None
+    assert body["sunlight"] is None
+    assert body["watering"] is None
+    assert body["space_requirement"] is None
+    assert body["indoor_suitable"] is None
+    assert body["outdoor_suitable"] is None
+    assert body["pet_safe"] is None
+    assert body["beginner_friendly"] is None
+
+
+@pytest.mark.asyncio
+async def test_create_plant_with_care_attributes(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    body = await _create_plant(
+        client,
+        test_category,
+        plant_type="foliage",
+        difficulty="easy",
+        growth_rate="fast",
+        sunlight="partial_shade",
+        watering="moderate",
+        space_requirement="medium",
+        indoor_suitable=True,
+        outdoor_suitable=False,
+        pet_safe=True,
+        beginner_friendly=True,
+    )
+    assert body["plant_type"] == "foliage"
+    assert body["difficulty"] == "easy"
+    assert body["growth_rate"] == "fast"
+    assert body["sunlight"] == "partial_shade"
+    assert body["watering"] == "moderate"
+    assert body["space_requirement"] == "medium"
+    assert body["indoor_suitable"] is True
+    assert body["outdoor_suitable"] is False
+    assert body["pet_safe"] is True
+    assert body["beginner_friendly"] is True
+
+
+@pytest.mark.asyncio
+async def test_create_plant_invalid_care_enum(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    response = await client.post(
+        PLANTS_PREFIX,
+        json=_plant_payload(test_category, difficulty="impossible"),
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_plant_care_attributes_and_clear(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(
+        client,
+        test_category,
+        plant_type="succulent",
+        difficulty="easy",
+        growth_rate="slow",
+        sunlight="full_sun",
+        watering="low",
+        space_requirement="small",
+        indoor_suitable=True,
+        outdoor_suitable=True,
+        pet_safe=False,
+        beginner_friendly=True,
+    )
+
+    updated = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={
+            "plant_type": "cactus",
+            "difficulty": "moderate",
+            "growth_rate": "moderate",
+            "sunlight": "low_light",
+            "watering": "high",
+            "space_requirement": "large",
+            "indoor_suitable": False,
+            "outdoor_suitable": True,
+            "pet_safe": True,
+            "beginner_friendly": False,
+        },
+    )
+    assert updated.status_code == 200
+    body = updated.json()
+    assert body["plant_type"] == "cactus"
+    assert body["difficulty"] == "moderate"
+    assert body["growth_rate"] == "moderate"
+    assert body["sunlight"] == "low_light"
+    assert body["watering"] == "high"
+    assert body["space_requirement"] == "large"
+    assert body["indoor_suitable"] is False
+    assert body["outdoor_suitable"] is True
+    assert body["pet_safe"] is True
+    assert body["beginner_friendly"] is False
+
+    cleared = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={
+            "plant_type": None,
+            "difficulty": None,
+            "growth_rate": None,
+            "sunlight": None,
+            "watering": None,
+            "space_requirement": None,
+            "indoor_suitable": None,
+            "outdoor_suitable": None,
+            "pet_safe": None,
+            "beginner_friendly": None,
+        },
+    )
+    assert cleared.status_code == 200
+    cleared_body = cleared.json()
+    assert cleared_body["plant_type"] is None
+    assert cleared_body["difficulty"] is None
+    assert cleared_body["growth_rate"] is None
+    assert cleared_body["sunlight"] is None
+    assert cleared_body["watering"] is None
+    assert cleared_body["space_requirement"] is None
+    assert cleared_body["indoor_suitable"] is None
+    assert cleared_body["outdoor_suitable"] is None
+    assert cleared_body["pet_safe"] is None
+    assert cleared_body["beginner_friendly"] is None
+
+    # Omitting fields leaves previous values
+    kept = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={"name": "Care Attributes Kept"},
+    )
+    assert kept.status_code == 200
+    assert kept.json()["plant_type"] is None
+    assert kept.json()["beginner_friendly"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_plant_returns_care_attributes(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(
+        client,
+        test_category,
+        plant_type="herb",
+        difficulty="hard",
+        growth_rate="fast",
+        sunlight="partial_sun",
+        watering="high",
+        space_requirement="medium",
+        indoor_suitable=False,
+        outdoor_suitable=True,
+        pet_safe=False,
+        beginner_friendly=False,
+    )
+
+    response = await client.get(f"{PLANTS_PREFIX}/{created['id']}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["plant_type"] == "herb"
+    assert body["difficulty"] == "hard"
+    assert body["growth_rate"] == "fast"
+    assert body["sunlight"] == "partial_sun"
+    assert body["watering"] == "high"
+    assert body["space_requirement"] == "medium"
+    assert body["indoor_suitable"] is False
+    assert body["outdoor_suitable"] is True
+    assert body["pet_safe"] is False
+    assert body["beginner_friendly"] is False
+
+
+@pytest.mark.asyncio
+async def test_public_plant_detail_returns_care_attributes(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    plant = await _seed_plant(
+        test_db_session,
+        test_category,
+        plant_type=PlantType.FERN,
+        difficulty=PlantDifficulty.EASY,
+        growth_rate=PlantGrowthRate.SLOW,
+        sunlight=PlantSunlight.SHADE,
+        watering=PlantWatering.MODERATE,
+        space_requirement=PlantSpaceRequirement.SMALL,
+        indoor_suitable=True,
+        outdoor_suitable=False,
+        pet_safe=True,
+        beginner_friendly=True,
+    )
+
+    response = await client.get(f"{STOREFRONT_PREFIX}/plants/{plant.slug}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["plant_type"] == "fern"
+    assert body["difficulty"] == "easy"
+    assert body["growth_rate"] == "slow"
+    assert body["sunlight"] == "shade"
+    assert body["watering"] == "moderate"
+    assert body["space_requirement"] == "small"
+    assert body["indoor_suitable"] is True
+    assert body["outdoor_suitable"] is False
+    assert body["pet_safe"] is True
+    assert body["beginner_friendly"] is True
 
 
 @pytest.mark.asyncio

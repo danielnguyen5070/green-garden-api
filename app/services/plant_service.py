@@ -12,7 +12,15 @@ from sqlalchemy.orm import noload, selectinload
 
 from app.core.text import escape_ilike_pattern, normalize_search_query
 from app.models.category import Category
-from app.models.plant import Plant
+from app.models.plant import (
+    Plant,
+    PlantDifficulty,
+    PlantGrowthRate,
+    PlantSpaceRequirement,
+    PlantSunlight,
+    PlantType,
+    PlantWatering,
+)
 from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
 from app.services.category_service import CategoryNotFoundError, get_category
@@ -263,6 +271,16 @@ async def create_plant(
     sku: str,
     is_featured: bool,
     is_active: bool,
+    plant_type: PlantType | None = None,
+    difficulty: PlantDifficulty | None = None,
+    growth_rate: PlantGrowthRate | None = None,
+    sunlight: PlantSunlight | None = None,
+    watering: PlantWatering | None = None,
+    space_requirement: PlantSpaceRequirement | None = None,
+    indoor_suitable: bool | None = None,
+    outdoor_suitable: bool | None = None,
+    pet_safe: bool | None = None,
+    beginner_friendly: bool | None = None,
 ) -> Plant:
     await get_category(session, category_id)
     await _ensure_slug_available(session, slug)
@@ -284,6 +302,16 @@ async def create_plant(
         sku=sku,
         is_featured=is_featured,
         is_active=is_active,
+        plant_type=plant_type,
+        difficulty=difficulty,
+        growth_rate=growth_rate,
+        sunlight=sunlight,
+        watering=watering,
+        space_requirement=space_requirement,
+        indoor_suitable=indoor_suitable,
+        outdoor_suitable=outdoor_suitable,
+        pet_safe=pet_safe,
+        beginner_friendly=beginner_friendly,
     )
     session.add(plant)
     try:
@@ -313,6 +341,16 @@ async def update_plant(
     sku: str | None = None,
     is_featured: bool | None = None,
     is_active: bool | None = None,
+    plant_type: PlantType | None = None,
+    difficulty: PlantDifficulty | None = None,
+    growth_rate: PlantGrowthRate | None = None,
+    sunlight: PlantSunlight | None = None,
+    watering: PlantWatering | None = None,
+    space_requirement: PlantSpaceRequirement | None = None,
+    indoor_suitable: bool | None = None,
+    outdoor_suitable: bool | None = None,
+    pet_safe: bool | None = None,
+    beginner_friendly: bool | None = None,
     name_vi_provided: bool = False,
     description_provided: bool = False,
     description_vi_provided: bool = False,
@@ -320,6 +358,16 @@ async def update_plant(
     long_description_vi_provided: bool = False,
     og_image_url_provided: bool = False,
     price_vi_provided: bool = False,
+    plant_type_provided: bool = False,
+    difficulty_provided: bool = False,
+    growth_rate_provided: bool = False,
+    sunlight_provided: bool = False,
+    watering_provided: bool = False,
+    space_requirement_provided: bool = False,
+    indoor_suitable_provided: bool = False,
+    outdoor_suitable_provided: bool = False,
+    pet_safe_provided: bool = False,
+    beginner_friendly_provided: bool = False,
 ) -> Plant:
     plant = await get_plant(session, plant_id)
 
@@ -359,6 +407,26 @@ async def update_plant(
         plant.is_featured = is_featured
     if is_active is not None:
         plant.is_active = is_active
+    if plant_type_provided:
+        plant.plant_type = plant_type
+    if difficulty_provided:
+        plant.difficulty = difficulty
+    if growth_rate_provided:
+        plant.growth_rate = growth_rate
+    if sunlight_provided:
+        plant.sunlight = sunlight
+    if watering_provided:
+        plant.watering = watering
+    if space_requirement_provided:
+        plant.space_requirement = space_requirement
+    if indoor_suitable_provided:
+        plant.indoor_suitable = indoor_suitable
+    if outdoor_suitable_provided:
+        plant.outdoor_suitable = outdoor_suitable
+    if pet_safe_provided:
+        plant.pet_safe = pet_safe
+    if beginner_friendly_provided:
+        plant.beginner_friendly = beginner_friendly
 
     try:
         await session.commit()

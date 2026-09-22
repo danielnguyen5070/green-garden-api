@@ -175,6 +175,16 @@ async def post_plant(
             sku=payload.sku,
             is_featured=payload.is_featured,
             is_active=payload.is_active,
+            plant_type=payload.plant_type,
+            difficulty=payload.difficulty,
+            growth_rate=payload.growth_rate,
+            sunlight=payload.sunlight,
+            watering=payload.watering,
+            space_requirement=payload.space_requirement,
+            indoor_suitable=payload.indoor_suitable,
+            outdoor_suitable=payload.outdoor_suitable,
+            pet_safe=payload.pet_safe,
+            beginner_friendly=payload.beginner_friendly,
         )
     except (CategoryNotFoundError, SlugConflictError, SkuConflictError) as exc:
         raise _map_plant_errors(exc) from exc
@@ -214,6 +224,16 @@ async def patch_plant(
             sku=payload.sku,
             is_featured=payload.is_featured,
             is_active=payload.is_active,
+            plant_type=payload.plant_type,
+            difficulty=payload.difficulty,
+            growth_rate=payload.growth_rate,
+            sunlight=payload.sunlight,
+            watering=payload.watering,
+            space_requirement=payload.space_requirement,
+            indoor_suitable=payload.indoor_suitable,
+            outdoor_suitable=payload.outdoor_suitable,
+            pet_safe=payload.pet_safe,
+            beginner_friendly=payload.beginner_friendly,
             name_vi_provided="name_vi" in payload.model_fields_set,
             description_provided="description" in payload.model_fields_set,
             description_vi_provided="description_vi" in payload.model_fields_set,
@@ -223,6 +243,20 @@ async def patch_plant(
             ),
             og_image_url_provided="og_image_url" in payload.model_fields_set,
             price_vi_provided="price_vi" in payload.model_fields_set,
+            plant_type_provided="plant_type" in payload.model_fields_set,
+            difficulty_provided="difficulty" in payload.model_fields_set,
+            growth_rate_provided="growth_rate" in payload.model_fields_set,
+            sunlight_provided="sunlight" in payload.model_fields_set,
+            watering_provided="watering" in payload.model_fields_set,
+            space_requirement_provided=(
+                "space_requirement" in payload.model_fields_set
+            ),
+            indoor_suitable_provided="indoor_suitable" in payload.model_fields_set,
+            outdoor_suitable_provided="outdoor_suitable" in payload.model_fields_set,
+            pet_safe_provided="pet_safe" in payload.model_fields_set,
+            beginner_friendly_provided=(
+                "beginner_friendly" in payload.model_fields_set
+            ),
         )
     except (
         PlantNotFoundError,

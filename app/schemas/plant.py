@@ -9,6 +9,14 @@ from uuid import UUID
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
 
 from app.core.text import normalize_slug, normalize_sku
+from app.models.plant import (
+    PlantDifficulty,
+    PlantGrowthRate,
+    PlantSpaceRequirement,
+    PlantSunlight,
+    PlantType,
+    PlantWatering,
+)
 from app.schemas.category import CategorySummary
 from app.schemas.plant_image import PlantImageResponse, PublicPlantImage
 from app.schemas.plant_pot_size import PlantPotSizeResponse
@@ -16,11 +24,17 @@ from app.schemas.plant_pot_size import PlantPotSizeResponse
 __all__ = [
     "CategorySummary",
     "PlantCreate",
+    "PlantDifficulty",
+    "PlantGrowthRate",
     "PlantListItem",
     "PlantListResponse",
     "PlantResponse",
+    "PlantSpaceRequirement",
     "PlantStatusUpdate",
+    "PlantSunlight",
+    "PlantType",
     "PlantUpdate",
+    "PlantWatering",
     "PublicPlantDetail",
     "PublicPlantListItem",
     "PublicPlantListResponse",
@@ -44,6 +58,16 @@ class PlantCreate(BaseModel):
     sku: str = Field(min_length=1, max_length=100)
     is_featured: bool = False
     is_active: bool = True
+    plant_type: PlantType | None = None
+    difficulty: PlantDifficulty | None = None
+    growth_rate: PlantGrowthRate | None = None
+    sunlight: PlantSunlight | None = None
+    watering: PlantWatering | None = None
+    space_requirement: PlantSpaceRequirement | None = None
+    indoor_suitable: bool | None = None
+    outdoor_suitable: bool | None = None
+    pet_safe: bool | None = None
+    beginner_friendly: bool | None = None
 
     @field_validator("name")
     @classmethod
@@ -109,6 +133,16 @@ class PlantUpdate(BaseModel):
     sku: str | None = Field(default=None, min_length=1, max_length=100)
     is_featured: bool | None = None
     is_active: bool | None = None
+    plant_type: PlantType | None = None
+    difficulty: PlantDifficulty | None = None
+    growth_rate: PlantGrowthRate | None = None
+    sunlight: PlantSunlight | None = None
+    watering: PlantWatering | None = None
+    space_requirement: PlantSpaceRequirement | None = None
+    indoor_suitable: bool | None = None
+    outdoor_suitable: bool | None = None
+    pet_safe: bool | None = None
+    beginner_friendly: bool | None = None
 
     @field_validator("name")
     @classmethod
@@ -212,6 +246,16 @@ class PlantResponse(BaseModel):
     sku: str
     is_featured: bool
     is_active: bool
+    plant_type: PlantType | None
+    difficulty: PlantDifficulty | None
+    growth_rate: PlantGrowthRate | None
+    sunlight: PlantSunlight | None
+    watering: PlantWatering | None
+    space_requirement: PlantSpaceRequirement | None
+    indoor_suitable: bool | None
+    outdoor_suitable: bool | None
+    pet_safe: bool | None
+    beginner_friendly: bool | None
     created_at: datetime
     updated_at: datetime
     images: list[PlantImageResponse] = []
@@ -282,6 +326,16 @@ class PublicPlantDetail(BaseModel):
     price_vi: Decimal | None
     is_featured: bool
     in_stock: bool
+    plant_type: PlantType | None
+    difficulty: PlantDifficulty | None
+    growth_rate: PlantGrowthRate | None
+    sunlight: PlantSunlight | None
+    watering: PlantWatering | None
+    space_requirement: PlantSpaceRequirement | None
+    indoor_suitable: bool | None
+    outdoor_suitable: bool | None
+    pet_safe: bool | None
+    beginner_friendly: bool | None
     category: CategorySummary | None = None
     images: list[PlantImageResponse] = []
     pot_sizes: list[PlantPotSizeResponse] = []

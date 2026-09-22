@@ -311,6 +311,16 @@ async def get_public_plant_by_slug(
         price_vi=plant.price_vi,
         is_featured=plant.is_featured,
         in_stock=plant.stock > 0,
+        plant_type=plant.plant_type,
+        difficulty=plant.difficulty,
+        growth_rate=plant.growth_rate,
+        sunlight=plant.sunlight,
+        watering=plant.watering,
+        space_requirement=plant.space_requirement,
+        indoor_suitable=plant.indoor_suitable,
+        outdoor_suitable=plant.outdoor_suitable,
+        pet_safe=plant.pet_safe,
+        beginner_friendly=plant.beginner_friendly,
         category=plant.category,
         images=[
             PlantImageResponse.model_validate(image)
