@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1 import admins as admins_router
 from app.api.v1 import auth as auth_router
 from app.api.v1 import categories as categories_router
+from app.api.v1 import chat as chat_router
 from app.api.v1 import customers as customers_router
 from app.api.v1 import notifications as notifications_router
 from app.api.v1 import orders as orders_router
@@ -22,3 +23,4 @@ api_router.include_router(overview_router.router)
 api_router.include_router(reviews_router.router)
 api_router.include_router(notifications_router.router)
 api_router.include_router(storefront_router.router)
+api_router.include_router(chat_router.router)

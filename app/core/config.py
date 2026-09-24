@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     # Optional OpenAI key for Weaviate text2vec-openai (RAG embeddings later).
     openai_api_key: str | None = None
 
+    # DeepSeek (OpenAI-compatible chat API; key never hardcoded)
+    deepseek_api_key: str | None = None
+    deepseek_model: str = "deepseek-chat"
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_timeout_seconds: float = 60.0
+
     @field_validator("auth_cookie_domain", mode="before")
     @classmethod
     def _normalize_auth_cookie_domain(cls, value: object) -> str | None:
@@ -68,7 +74,11 @@ class Settings(BaseSettings):
         return value  # type: ignore[return-value]
 
     @field_validator(
-        "weaviate_api_key", "openai_api_key", "weaviate_grpc_host", mode="before"
+        "weaviate_api_key",
+        "openai_api_key",
+        "weaviate_grpc_host",
+        "deepseek_api_key",
+        mode="before",
     )
     @classmethod
     def _normalize_optional_str(cls, value: object) -> str | None:

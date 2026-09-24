@@ -15,3 +15,4 @@ email-validator==2.2.0
 weaviate-client==4.16.10
 langchain-text-splitters==0.3.8
 langchain-core==0.3.63
+openai==1.82.0
