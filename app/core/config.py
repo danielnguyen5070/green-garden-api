@@ -45,6 +45,18 @@ class Settings(BaseSettings):
     # CORS — comma-separated Next.js origins (parsed to a list)
     cors_origins: str = "http://localhost:3000"
 
+    # Weaviate (vector store for AI/RAG knowledge; PostgreSQL remains source of truth)
+    weaviate_enabled: bool = False
+    weaviate_http_host: str = "localhost"
+    weaviate_http_port: int = 8080
+    weaviate_grpc_host: str | None = None
+    weaviate_grpc_port: int = 50051
+    weaviate_http_secure: bool = False
+    weaviate_grpc_secure: bool = False
+    weaviate_api_key: str | None = None
+    # Optional OpenAI key for Weaviate text2vec-openai (RAG embeddings later).
+    openai_api_key: str | None = None
+
     @field_validator("auth_cookie_domain", mode="before")
     @classmethod
     def _normalize_auth_cookie_domain(cls, value: object) -> str | None:
@@ -55,8 +67,23 @@ class Settings(BaseSettings):
             return stripped or None
         return value  # type: ignore[return-value]
 
+    @field_validator(
+        "weaviate_api_key", "openai_api_key", "weaviate_grpc_host", mode="before"
+    )
+    @classmethod
+    def _normalize_optional_str(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return value  # type: ignore[return-value]
+
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    def weaviate_grpc_host_resolved(self) -> str:
+        return self.weaviate_grpc_host or self.weaviate_http_host
 
 
 @lru_cache

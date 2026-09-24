@@ -23,6 +23,7 @@ from app.models.plant import (
 )
 from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
+from app.services.ai.knowledge.plant_indexer import sync_plant_knowledge_safe
 from app.services.category_service import CategoryNotFoundError, get_category
 
 SortField = Literal["created_at", "name", "price", "stock"]
@@ -319,7 +320,9 @@ async def create_plant(
     except Exception:
         await session.rollback()
         raise
-    return await get_plant(session, plant.id)
+    plant = await get_plant(session, plant.id)
+    sync_plant_knowledge_safe(plant)
+    return plant
 
 
 async def update_plant(
@@ -433,7 +436,9 @@ async def update_plant(
     except Exception:
         await session.rollback()
         raise
-    return await get_plant(session, plant.id)
+    plant = await get_plant(session, plant.id)
+    sync_plant_knowledge_safe(plant)
+    return plant
 
 
 async def set_plant_status(
@@ -449,7 +454,9 @@ async def set_plant_status(
     except Exception:
         await session.rollback()
         raise
-    return await get_plant(session, plant.id)
+    plant = await get_plant(session, plant.id)
+    sync_plant_knowledge_safe(plant)
+    return plant
 
 
 async def _ensure_plant_exists(session: AsyncSession, plant_id: uuid.UUID) -> None:

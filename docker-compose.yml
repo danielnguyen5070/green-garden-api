@@ -28,12 +28,43 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_PORT: ${POSTGRES_PORT}
+      WEAVIATE_HTTP_HOST: weaviate
+      WEAVIATE_HTTP_PORT: "8080"
+      WEAVIATE_GRPC_HOST: weaviate
+      WEAVIATE_GRPC_PORT: "50051"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     depends_on:
       db:
+        condition: service_healthy
+      weaviate:
         condition: service_healthy
     volumes:
       - .:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.28.4
+    ports:
+      - "${WEAVIATE_HOST_HTTP_PORT:-8080}:8080"
+      - "${WEAVIATE_HOST_GRPC_PORT:-50051}:50051"
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      DEFAULT_VECTORIZER_MODULE: text2vec-openai
+      ENABLE_MODULES: text2vec-openai
+      ENABLE_API_BASED_MODULES: "true"
+      CLUSTER_HOSTNAME: node1
+      OPENAI_APIKEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
 volumes:
   postgres_data:
+  weaviate_data:
