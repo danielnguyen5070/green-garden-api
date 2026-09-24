@@ -26,20 +26,25 @@ from app.services.ai.knowledge.plant_indexer import (
     index_plant,
     reindex_all_plants,
     sync_plant_knowledge,
+    sync_plant_knowledge_safe,
     update_plant_knowledge,
 )
 from app.services.ai.knowledge.weaviate import (
     COLLECTION_NAME,
+    PLANT_COLLECTION_NAME,
     KnowledgeSourceType,
     close_weaviate_client,
     ensure_knowledge_collection,
+    ensure_plant_knowledge_collection,
     get_weaviate_client,
     knowledge_object_uuid,
     upsert_knowledge_objects,
+    upsert_plant_knowledge_objects,
 )
 
 __all__ = [
     "COLLECTION_NAME",
+    "PLANT_COLLECTION_NAME",
     "KnowledgeSourceType",
     "PlantChunk",
     "build_plant_content",
@@ -48,6 +53,7 @@ __all__ = [
     "delete_faq_knowledge",
     "delete_plant_knowledge",
     "ensure_knowledge_collection",
+    "ensure_plant_knowledge_collection",
     "get_weaviate_client",
     "index_blog",
     "index_faq",
@@ -58,8 +64,10 @@ __all__ = [
     "reindex_all_faqs",
     "reindex_all_plants",
     "sync_plant_knowledge",
+    "sync_plant_knowledge_safe",
     "update_blog_knowledge",
     "update_faq_knowledge",
     "update_plant_knowledge",
     "upsert_knowledge_objects",
+    "upsert_plant_knowledge_objects",
 ]
