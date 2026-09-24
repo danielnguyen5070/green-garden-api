@@ -135,9 +135,8 @@ class DeepSeekService:
             msg = choice.message
             tool_calls = list(msg.tool_calls or [])
             if not tool_calls:
-                # Direct answer path — keep any draft content for the stream step.
-                if msg.content:
-                    messages.append({"role": "assistant", "content": msg.content})
+                # No tools needed — leave messages unchanged so the caller can
+                # stream the final answer with stream=True (progressive SSE).
                 return messages
 
             messages.append(self._assistant_tool_message(msg))
@@ -155,6 +154,38 @@ class DeepSeekService:
                 )
         return messages
 
+    async def _stream_completion(
+        self,
+        *,
+        client: AsyncOpenAI,
+        messages: list[dict[str, Any]],
+    ) -> AsyncIterator[str]:
+        """Yield text deltas as they arrive from DeepSeek (``stream=True``)."""
+        try:
+            stream = await client.chat.completions.create(
+                model=self._settings.deepseek_model,
+                messages=messages,  # type: ignore[arg-type]
+                stream=True,
+            )
+            async for chunk in stream:
+                choices = getattr(chunk, "choices", None) or []
+                if not choices:
+                    continue
+                delta = getattr(choices[0], "delta", None)
+                content = getattr(delta, "content", None) if delta is not None else None
+                if content:
+                    # Yield immediately — do not accumulate the full answer.
+                    yield content
+        except APITimeoutError as exc:
+            logger.exception("DeepSeek stream timed out")
+            raise TimeoutError("DeepSeek request timed out") from exc
+        except RateLimitError as exc:
+            logger.exception("DeepSeek rate limit exceeded")
+            raise RuntimeError("DeepSeek rate limit exceeded") from exc
+        except APIError as exc:
+            logger.exception("DeepSeek API error: %s", exc)
+            raise RuntimeError("DeepSeek API request failed") from exc
+
     async def stream_chat(
         self,
         *,
@@ -169,41 +200,9 @@ class DeepSeekService:
             client=client, messages=messages, session=session
         )
 
-        # If the last message is already a plain assistant reply (no tools used),
-        # stream that text without a second network round-trip.
-        last = messages[-1] if messages else None
-        if (
-            last
-            and last.get("role") == "assistant"
-            and not last.get("tool_calls")
-            and last.get("content")
-        ):
-            yield str(last["content"])
-            return
-
-        try:
-            stream = await client.chat.completions.create(
-                model=self._settings.deepseek_model,
-                messages=messages,  # type: ignore[arg-type]
-                stream=True,
-            )
-            async for chunk in stream:
-                choices = getattr(chunk, "choices", None) or []
-                if not choices:
-                    continue
-                delta = getattr(choices[0], "delta", None)
-                content = getattr(delta, "content", None) if delta is not None else None
-                if content:
-                    yield content
-        except APITimeoutError as exc:
-            logger.exception("DeepSeek stream timed out")
-            raise TimeoutError("DeepSeek request timed out") from exc
-        except RateLimitError as exc:
-            logger.exception("DeepSeek rate limit exceeded")
-            raise RuntimeError("DeepSeek rate limit exceeded") from exc
-        except APIError as exc:
-            logger.exception("DeepSeek API error: %s", exc)
-            raise RuntimeError("DeepSeek API request failed") from exc
+        # Always stream the user-visible answer as DeepSeek deltas arrive.
+        async for text in self._stream_completion(client=client, messages=messages):
+            yield text
 
 
 def get_deepseek_service(settings: Settings | None = None) -> DeepSeekService:

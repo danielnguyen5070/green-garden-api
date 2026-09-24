@@ -106,8 +106,24 @@ async def test_chat_stream_greeting_direct_no_tools(
     monkeypatch.setattr(settings, "deepseek_api_key", "test-key-not-real")
     monkeypatch.setattr("app.api.v1.chat.get_settings", lambda: settings)
 
-    create = AsyncMock(return_value=_completion(content="Xin chào! Mình có thể giúp gì?"))
-    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    async def create(**kwargs: Any) -> Any:
+        if kwargs.get("stream"):
+            async def gen() -> AsyncIterator[Any]:
+                for part in ("Xin ", "chào! ", "Mình có thể giúp gì?"):
+                    yield SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(delta=SimpleNamespace(content=part))
+                        ]
+                    )
+
+            return gen()
+        # Tool-routing round: no tools → final answer is streamed separately.
+        return _completion(content=None, tool_calls=[])
+
+    create_mock = AsyncMock(side_effect=create)
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create_mock))
+    )
     monkeypatch.setattr(DeepSeekService, "_get_client", lambda self: fake_client)
 
     knowledge_calls: list[Any] = []
@@ -127,12 +143,60 @@ async def test_chat_stream_greeting_direct_no_tools(
     events = _parse_sse_frames(response.text)
     assert events[-1] == {"type": "done"}
     chunks = [e["content"] for e in events if e.get("type") == "chunk"]
-    assert any("Xin chào" in c for c in chunks)
+    assert chunks == ["Xin ", "chào! ", "Mình có thể giúp gì?"]
     assert price_spy.await_count == 0
     assert knowledge_calls == []
-    # One non-stream tool-routing call only (no final stream needed).
-    assert create.await_count == 1
+    # 1 tool-routing call + 1 streaming call
+    assert create_mock.await_count == 2
 
+
+@pytest.mark.asyncio
+async def test_chat_stream_emits_progressive_sse_chunks(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Final answer must arrive as many small SSE chunks, not one blob."""
+    get_settings.cache_clear()
+    settings = get_settings()
+    monkeypatch.setattr(settings, "deepseek_api_key", "test-key-not-real")
+    monkeypatch.setattr("app.api.v1.chat.get_settings", lambda: settings)
+
+    deltas = ["Cây", " Chùm", " Ngây", " hiện", " có", " giá", " tốt."]
+
+    async def create(**kwargs: Any) -> Any:
+        if kwargs.get("stream"):
+            async def gen() -> AsyncIterator[Any]:
+                for part in deltas:
+                    yield SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(delta=SimpleNamespace(content=part))
+                        ]
+                    )
+
+            return gen()
+        return _completion(content=None, tool_calls=[])
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=AsyncMock(side_effect=create))
+        )
+    )
+    monkeypatch.setattr(DeepSeekService, "_get_client", lambda self: fake_client)
+
+    response = await client.post(
+        CHAT_STREAM,
+        json={"message": "Giới thiệu ngắn về cây chùm ngây", "conversation": []},
+    )
+    assert response.status_code == 200
+    events = _parse_sse_frames(response.text)
+    chunk_events = [e for e in events if e.get("type") == "chunk"]
+    assert len(chunk_events) == len(deltas)
+    assert [e["content"] for e in chunk_events] == deltas
+    assert events[-1] == {"type": "done"}
+    # Must not collapse into a single full-answer chunk
+    assert not any(
+        e.get("content") == "".join(deltas) for e in chunk_events
+    )
 
 @pytest.mark.asyncio
 async def test_price_question_uses_postgres_not_weaviate(
@@ -168,9 +232,9 @@ async def test_price_question_uses_postgres_not_weaviate(
                 )
 
             return gen()
-        # After tools run, DeepSeek is called again — return a final answer (no tools).
+        # After tools run, next routing round has no tools → then stream.
         if create.calls > 0:  # type: ignore[attr-defined]
-            return _completion(content="Giá khoảng 150.000đ.")
+            return _completion(content=None, tool_calls=[])
         create.calls += 1  # type: ignore[attr-defined]
         return _completion(
             tool_calls=[
@@ -231,7 +295,7 @@ async def test_stock_question_uses_postgres_not_weaviate(
 
             return gen()
         if create.calls > 0:  # type: ignore[attr-defined]
-            return _completion(content="Còn hàng.")
+            return _completion(content=None, tool_calls=[])
         create.calls += 1  # type: ignore[attr-defined]
         return _completion(
             tool_calls=[
@@ -324,7 +388,7 @@ async def test_knowledge_question_uses_weaviate_not_price_stock(
                     )
                 ]
             )
-        return _completion(content="Có, cây này cần nhiều ánh sáng.")
+        return _completion(content=None, tool_calls=[])
 
     fake_client = SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock(side_effect=create)))
@@ -388,7 +452,7 @@ async def test_mixed_price_and_knowledge_calls_both(
 
             return gen()
         if create.calls > 0:  # type: ignore[attr-defined]
-            return _completion(content="Giá 150.000đ và cây ưa sáng.")
+            return _completion(content=None, tool_calls=[])
         create.calls += 1  # type: ignore[attr-defined]
         return _completion(
             tool_calls=[
