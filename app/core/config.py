@@ -1,5 +1,6 @@
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -38,26 +39,20 @@ class Settings(BaseSettings):
     auth_access_cookie_name: str = "gg_access_token"
     auth_refresh_cookie_name: str = "gg_refresh_token"
     auth_cookie_path: str = "/"
-    # Shared parent domain for cross-subdomain cookies (e.g. .ngocnganbentre.vn).
-    # Leave unset/empty for host-only cookies (local development).
     auth_cookie_domain: str | None = None
 
     # CORS — comma-separated Next.js origins (parsed to a list)
     cors_origins: str = "http://localhost:3000"
 
-    # Weaviate (vector store for AI/RAG knowledge; PostgreSQL remains source of truth)
+    # Weaviate (simple URL style)
     weaviate_enabled: bool = False
-    weaviate_http_host: str = "localhost"
-    weaviate_http_port: int = 8080
-    weaviate_grpc_host: str | None = None
+    weaviate_url: str = "http://localhost:8080"
     weaviate_grpc_port: int = 50051
-    weaviate_http_secure: bool = False
-    weaviate_grpc_secure: bool = False
     weaviate_api_key: str | None = None
-    # Optional OpenAI key for Weaviate text2vec-openai (RAG embeddings later).
+    rag_top_k: int = 3
     openai_api_key: str | None = None
 
-    # DeepSeek (OpenAI-compatible chat API; key never hardcoded)
+    # DeepSeek
     deepseek_api_key: str | None = None
     deepseek_model: str = "deepseek-chat"
     deepseek_base_url: str = "https://api.deepseek.com"
@@ -76,7 +71,6 @@ class Settings(BaseSettings):
     @field_validator(
         "weaviate_api_key",
         "openai_api_key",
-        "weaviate_grpc_host",
         "deepseek_api_key",
         mode="before",
     )
@@ -92,8 +86,14 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
-    def weaviate_grpc_host_resolved(self) -> str:
-        return self.weaviate_grpc_host or self.weaviate_http_host
+    def weaviate_http_parts(self) -> tuple[str, int, bool]:
+        """Parse ``WEAVIATE_URL`` into ``(host, port, secure)``."""
+        raw = (self.weaviate_url or "").strip()
+        parsed = urlparse(raw if "://" in raw else f"http://{raw}")
+        host = parsed.hostname or "localhost"
+        secure = parsed.scheme == "https"
+        port = parsed.port or (443 if secure else 80)
+        return host, port, secure
 
 
 @lru_cache

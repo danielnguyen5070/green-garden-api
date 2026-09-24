@@ -76,13 +76,14 @@ def get_weaviate_client(
     if _client is not None and _client.is_connected():
         return _client
 
+    http_host, http_port, http_secure = cfg.weaviate_http_parts()
     _client = weaviate.connect_to_custom(
-        http_host=cfg.weaviate_http_host,
-        http_port=cfg.weaviate_http_port,
-        http_secure=cfg.weaviate_http_secure,
-        grpc_host=cfg.weaviate_grpc_host_resolved(),
+        http_host=http_host,
+        http_port=http_port,
+        http_secure=http_secure,
+        grpc_host=http_host,
         grpc_port=cfg.weaviate_grpc_port,
-        grpc_secure=cfg.weaviate_grpc_secure,
+        grpc_secure=http_secure,
         auth_credentials=_auth(cfg),
         headers=_headers(cfg) or None,
         skip_init_checks=False,

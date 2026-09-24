@@ -1,4 +1,4 @@
-"""Public streaming chat endpoint (DeepSeek)."""
+"""Public streaming chat endpoint (DeepSeek + tools)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from app.core.config import get_settings
+from app.core.database import AsyncSessionLocal
 from app.core.sse import sse_chunk, sse_done, sse_error
 from app.schemas.chat import ChatStreamRequest
 from app.services.ai.deepseek import (
@@ -27,13 +28,17 @@ async def _stream_chat_events(
     payload: ChatStreamRequest,
     service: DeepSeekService,
 ) -> AsyncIterator[str]:
+    # Own the DB session for the full SSE lifetime (Depends(get_db) would close
+    # as soon as StreamingResponse is returned).
     try:
-        async for text in service.stream_chat(
-            message=payload.message,
-            conversation=[m.model_dump() for m in payload.conversation],
-        ):
-            yield sse_chunk(text)
-        yield sse_done()
+        async with AsyncSessionLocal() as session:
+            async for text in service.stream_chat(
+                message=payload.message,
+                conversation=[m.model_dump() for m in payload.conversation],
+                session=session,
+            ):
+                yield sse_chunk(text)
+            yield sse_done()
     except DeepSeekNotConfiguredError:
         logger.error("Chat stream requested but DeepSeek is not configured")
         yield sse_error("Chat service is not configured")
@@ -61,8 +66,8 @@ async def _stream_chat_events(
 async def stream_chat(payload: ChatStreamRequest) -> StreamingResponse:
     """Stream an assistant reply as Server-Sent Events.
 
-    Conversation history is accepted from the client and forwarded to DeepSeek;
-    the backend does not persist it.
+    DeepSeek may call catalogue/knowledge tools internally; only the final
+    natural-language answer is streamed. Conversation history is not persisted.
     """
     settings = get_settings()
     service = get_deepseek_service(settings)
