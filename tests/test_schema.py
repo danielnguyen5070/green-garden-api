@@ -11,6 +11,7 @@ EXPECTED_TABLES = {
     "plants",
     "plant_images",
     "plant_pot_sizes",
+    "plant_slug_history",
     "customers",
     "orders",
     "order_items",

@@ -1598,6 +1598,125 @@ async def test_public_plant_detail_not_found(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_public_plant_detail_resolves_normalized_slug_variants(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    plant = await _seed_plant(test_db_session, test_category, is_active=True)
+    variant = plant.slug.upper().replace("-", "_")
+
+    response = await client.get(f"{STOREFRONT_PREFIX}/plants/{variant}")
+    assert response.status_code == 200
+    assert response.json()["slug"] == plant.slug
+
+
+@pytest.mark.asyncio
+async def test_public_plant_detail_resolves_renamed_slug(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(client, test_category)
+    old_slug = created["slug"]
+    new_slug = f"renamed-{uuid4().hex[:8]}"
+
+    renamed = await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}", json={"slug": new_slug}
+    )
+    assert renamed.status_code == 200
+    client.cookies.clear()
+
+    old = await client.get(f"{STOREFRONT_PREFIX}/plants/{old_slug}")
+    assert old.status_code == 200
+    assert old.json()["id"] == created["id"]
+    assert old.json()["slug"] == new_slug
+
+    current = await client.get(f"{STOREFRONT_PREFIX}/plants/{new_slug}")
+    assert current.status_code == 200
+    assert current.json()["slug"] == new_slug
+
+
+@pytest.mark.asyncio
+async def test_renamed_slug_hidden_when_plant_inactive(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(client, test_category)
+    old_slug = created["slug"]
+
+    await client.patch(
+        f"{PLANTS_PREFIX}/{created['id']}",
+        json={"slug": f"renamed-{uuid4().hex[:8]}", "is_active": False},
+    )
+    client.cookies.clear()
+
+    response = await client.get(f"{STOREFRONT_PREFIX}/plants/{old_slug}")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_plant_can_rename_back_to_previous_slug(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    created = await _create_plant(client, test_category)
+    original = created["slug"]
+    interim = f"interim-{uuid4().hex[:8]}"
+
+    first = await client.patch(f"{PLANTS_PREFIX}/{created['id']}", json={"slug": interim})
+    assert first.status_code == 200
+    back = await client.patch(f"{PLANTS_PREFIX}/{created['id']}", json={"slug": original})
+    assert back.status_code == 200
+    assert back.json()["slug"] == original
+    client.cookies.clear()
+
+    via_interim = await client.get(f"{STOREFRONT_PREFIX}/plants/{interim}")
+    assert via_interim.status_code == 200
+    assert via_interim.json()["slug"] == original
+
+
+@pytest.mark.asyncio
+async def test_new_plant_can_take_another_plants_old_slug(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+) -> None:
+    await _login(client, active_admin)
+    first = await _create_plant(client, test_category)
+    old_slug = first["slug"]
+
+    await client.patch(
+        f"{PLANTS_PREFIX}/{first['id']}", json={"slug": f"moved-{uuid4().hex[:8]}"}
+    )
+    second = await _create_plant(client, test_category, slug=old_slug)
+
+    other = await _create_plant(client, test_category)
+    await client.patch(
+        f"{PLANTS_PREFIX}/{other['id']}", json={"slug": f"gone-{uuid4().hex[:8]}"}
+    )
+    third_slug = other["slug"]
+    reclaimed = await client.patch(
+        f"{PLANTS_PREFIX}/{first['id']}", json={"slug": third_slug}
+    )
+    assert reclaimed.status_code == 200
+    client.cookies.clear()
+
+    response = await client.get(f"{STOREFRONT_PREFIX}/plants/{old_slug}")
+    assert response.status_code == 200
+    assert response.json()["id"] == second["id"]
+
+    response = await client.get(f"{STOREFRONT_PREFIX}/plants/{third_slug}")
+    assert response.status_code == 200
+    assert response.json()["id"] == first["id"]
+
+
+@pytest.mark.asyncio
 async def test_public_list_hides_admin_fields(
     client: AsyncClient,
     test_category: Category,

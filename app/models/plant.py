@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from app.models.order_item import OrderItem
     from app.models.plant_image import PlantImage
     from app.models.plant_pot_size import PlantPotSize
+    from app.models.plant_slug_history import PlantSlugHistory
 
 
 class PlantType(str, enum.Enum):
@@ -186,4 +187,11 @@ class Plant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         "OrderItem",
         back_populates="plant",
         lazy="selectin",
+    )
+    slug_history: Mapped[list[PlantSlugHistory]] = relationship(
+        "PlantSlugHistory",
+        back_populates="plant",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="noload",
     )

@@ -6,7 +6,7 @@ import uuid
 from decimal import Decimal
 from typing import Any, Literal
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
 
@@ -23,6 +23,7 @@ from app.models.plant import (
 )
 from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
+from app.models.plant_slug_history import PlantSlugHistory
 from app.services.ai.knowledge.plant_indexer import sync_plant_knowledge_safe
 from app.services.category_service import CategoryNotFoundError, get_category
 
@@ -100,6 +101,11 @@ async def _ensure_slug_available(
     result = await session.execute(stmt)
     if result.scalar_one_or_none() is not None:
         raise SlugConflictError(f"Plant with slug '{slug}' already exists")
+
+
+async def _release_historical_slug(session: AsyncSession, slug: str) -> None:
+    """Drop `slug` from history so a live plant can take it over."""
+    await session.execute(delete(PlantSlugHistory).where(PlantSlugHistory.slug == slug))
 
 
 async def _ensure_sku_available(
@@ -248,11 +254,28 @@ async def get_plant_by_slug(
     *,
     active_only: bool = False,
 ) -> Plant:
+    """
+    Resolve a plant by its current slug, falling back to slugs it used before.
+
+    A historical match returns the plant with its current `slug`, so callers
+    can redirect old URLs to the canonical one.
+    """
     stmt = select(Plant).where(Plant.slug == slug).options(*_detail_options())
     if active_only:
         stmt = stmt.where(Plant.is_active.is_(True))
-    result = await session.execute(stmt)
-    plant = result.scalar_one_or_none()
+    plant = (await session.execute(stmt)).scalar_one_or_none()
+    if plant is not None:
+        return plant
+
+    history_stmt = (
+        select(Plant)
+        .join(PlantSlugHistory, PlantSlugHistory.plant_id == Plant.id)
+        .where(PlantSlugHistory.slug == slug)
+        .options(*_detail_options())
+    )
+    if active_only:
+        history_stmt = history_stmt.where(Plant.is_active.is_(True))
+    plant = (await session.execute(history_stmt)).scalar_one_or_none()
     if plant is None:
         raise PlantNotFoundError("Plant not found")
     return plant
@@ -290,6 +313,7 @@ async def create_plant(
     await get_category(session, category_id)
     await _ensure_slug_available(session, slug)
     await _ensure_sku_available(session, sku)
+    await _release_historical_slug(session, slug)
 
     plant = Plant(
         category_id=category_id,
@@ -384,6 +408,8 @@ async def update_plant(
 
     if slug is not None and slug != plant.slug:
         await _ensure_slug_available(session, slug, exclude_id=plant.id)
+        await _release_historical_slug(session, slug)
+        session.add(PlantSlugHistory(plant_id=plant.id, slug=plant.slug))
         plant.slug = slug
 
     if sku is not None and sku != plant.sku:

@@ -17,6 +17,7 @@ from app.models.plant import (
 )
 from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
+from app.models.plant_slug_history import PlantSlugHistory
 from app.models.review import Review, ReviewStatus
 from app.models.notification import Notification, NotificationType
 
@@ -38,6 +39,7 @@ __all__ = [
     "PlantImage",
     "PlantImageType",
     "PlantPotSize",
+    "PlantSlugHistory",
     "Review",
     "ReviewStatus",
     "Notification",
