@@ -53,6 +53,16 @@ class PlantPotSizeUpdate(BaseModel):
         return stripped
 
 
+class PublicPotSizeSummary(BaseModel):
+    """The pot size a catalogue card sells by default, priced in VND."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    price_adjustment_vi: Decimal | None
+
+
 class PlantPotSizeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

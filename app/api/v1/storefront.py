@@ -1,9 +1,10 @@
 """Public storefront routes: the catalogue and the cash-on-delivery checkout.
 
 No authentication anywhere here. Only active plants are exposed, and checkout
-reuses `app.services.order_service` — the same validation, snapshots and stock
-movements as the admin panel, priced from the Vietnamese catalogue columns and
-with the storefront shipping fee on top.
+reuses `app.services.order_service` — the same VND pricing, snapshots and stock
+movements as the admin panel, with the shipping fee on top. The quote endpoint
+runs that pricing without writing, so the cart and checkout show exactly what
+the order will charge.
 """
 
 from __future__ import annotations
@@ -16,14 +17,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.text import normalize_slug
+from app.models.order import ORDER_CURRENCY
 from app.models.plant import Plant
-from app.models.plant_image import PlantImage
+from app.models.plant_image import PlantImage, PlantImageType
+from app.models.plant_pot_size import PlantPotSize
 from app.models.review import ReviewStatus
 from app.schemas.category import (
     PublicCategoryListItem,
     PublicCategoryListResponse,
 )
-from app.schemas.order import StorefrontOrderCreate, StorefrontOrderResponse
+from app.schemas.order import (
+    ShippingPolicyResponse,
+    StorefrontOrderCreate,
+    StorefrontOrderResponse,
+    StorefrontQuoteLine,
+    StorefrontQuoteRequest,
+    StorefrontQuoteResponse,
+)
 from app.schemas.plant import (
     PublicPlantDetail,
     PublicPlantListItem,
@@ -31,7 +41,7 @@ from app.schemas.plant import (
     PublicPlantSearchResponse,
 )
 from app.schemas.plant_image import PlantImageResponse, PublicPlantImage
-from app.schemas.plant_pot_size import PlantPotSizeResponse
+from app.schemas.plant_pot_size import PlantPotSizeResponse, PublicPotSizeSummary
 from app.schemas.review import (
     PublicReviewListItem,
     PublicReviewListResponse,
@@ -41,13 +51,17 @@ from app.schemas.review import (
 from app.services.category_service import list_categories
 from app.services.customer_service import CustomerInactiveError
 from app.services.order_service import (
+    FREE_SHIPPING_ABOVE,
+    SHIPPING_FEE,
     InsufficientStockError,
     OrderItemInput,
-    OrderPricing,
+    OrderSource,
     OrderTotalTooLargeError,
     PlantUnavailableError,
     PotSizeUnavailableError,
+    amount_to_free_shipping,
     create_order,
+    quote_order,
 )
 from app.services.plant_service import (
     PlantNotFoundError,
@@ -66,6 +80,46 @@ router = APIRouter(prefix="/storefront", tags=["storefront"])
 def _sorted_images(plant: Plant) -> list[PlantImage]:
     """Media in display order: `sort_order` first, oldest first on a tie."""
     return sorted(plant.images, key=lambda image: (image.sort_order, image.created_at))
+
+
+def _active_pot_sizes(plant: Plant) -> list[PlantPotSize]:
+    """Pot sizes on sale, default first — the same order checkout resolves."""
+    return sorted(
+        (size for size in plant.pot_sizes if size.is_active),
+        key=lambda size: (size.sort_order, size.name),
+    )
+
+
+def _primary_image_url(plant: Plant) -> str | None:
+    """First still image in display order, else the first media of any kind."""
+    images = _sorted_images(plant)
+    primary = next(
+        (image for image in images if image.type is PlantImageType.IMAGE),
+        images[0] if images else None,
+    )
+    return primary.url if primary is not None else None
+
+
+def _public_list_item(plant: Plant) -> PublicPlantListItem:
+    pot_sizes = _active_pot_sizes(plant)
+    return PublicPlantListItem(
+        id=plant.id,
+        name=plant.name,
+        name_vi=plant.name_vi,
+        slug=plant.slug,
+        description=plant.description,
+        description_vi=plant.description_vi,
+        og_image_url=plant.og_image_url,
+        price=plant.price,
+        price_vi=plant.price_vi,
+        stock=plant.stock,
+        is_featured=plant.is_featured,
+        category=plant.category,
+        images=[PublicPlantImage.model_validate(image) for image in _sorted_images(plant)],
+        default_pot_size=(
+            PublicPotSizeSummary.model_validate(pot_sizes[0]) if pot_sizes else None
+        ),
+    )
 
 
 @router.get(
@@ -158,10 +212,12 @@ async def post_public_review(
         "Paginated storefront catalogue. Inactive plants are never returned.\n\n"
         "Each row carries everything a catalogue card needs — English and "
         "Vietnamese copy (`name` / `name_vi`, `description` / `description_vi`, "
-        "`price` / `price_vi`, one shared `slug`), `stock`, `is_featured`, the "
-        "category summary and the plant's media, ordered by `sort_order` "
-        "ascending — so the frontend never has to call the detail endpoint per "
-        "card. Images are loaded with one extra query for the whole page."
+        "one shared `slug`), the VND selling price `price_vi` (the legacy "
+        "`price` is never charged), `stock`, `is_featured`, the category "
+        "summary, the plant's media ordered by `sort_order` ascending, and "
+        "`default_pot_size` — the pot size checkout uses when none is chosen — "
+        "so the frontend never has to call the detail endpoint per card. Images "
+        "and pot sizes are loaded with one extra query each for the whole page."
     ),
 )
 async def get_public_plants(
@@ -192,27 +248,7 @@ async def get_public_plants(
         with_images=True,
     )
     return PublicPlantListResponse(
-        items=[
-            PublicPlantListItem(
-                id=plant.id,
-                name=plant.name,
-                name_vi=plant.name_vi,
-                slug=plant.slug,
-                description=plant.description,
-                description_vi=plant.description_vi,
-                og_image_url=plant.og_image_url,
-                price=plant.price,
-                price_vi=plant.price_vi,
-                stock=plant.stock,
-                is_featured=plant.is_featured,
-                category=plant.category,
-                images=[
-                    PublicPlantImage.model_validate(image)
-                    for image in _sorted_images(plant)
-                ],
-            )
-            for plant in items
-        ],
+        items=[_public_list_item(plant) for plant in items],
         page=page,
         page_size=page_size,
         total=total,
@@ -252,27 +288,7 @@ async def search_public_plants(
     return PublicPlantSearchResponse(
         query=query,
         total=total,
-        items=[
-            PublicPlantListItem(
-                id=plant.id,
-                name=plant.name,
-                name_vi=plant.name_vi,
-                slug=plant.slug,
-                description=plant.description,
-                description_vi=plant.description_vi,
-                og_image_url=plant.og_image_url,
-                price=plant.price,
-                price_vi=plant.price_vi,
-                stock=plant.stock,
-                is_featured=plant.is_featured,
-                category=plant.category,
-                images=[
-                    PublicPlantImage.model_validate(image)
-                    for image in _sorted_images(plant)
-                ],
-            )
-            for plant in items
-        ],
+        items=[_public_list_item(plant) for plant in items],
     )
 
 
@@ -327,10 +343,93 @@ async def get_public_plant_by_slug(
             for image in _sorted_images(plant)
         ],
         pot_sizes=[
-            PlantPotSizeResponse.model_validate(size)
-            for size in sorted(plant.pot_sizes, key=lambda s: (s.sort_order, s.name))
-            if size.is_active
+            PlantPotSizeResponse.model_validate(size) for size in _active_pot_sizes(plant)
         ],
+    )
+
+
+@router.get(
+    "/shipping-policy",
+    response_model=ShippingPolicyResponse,
+    summary="Shipping fee and free-shipping threshold (public)",
+    description=(
+        "The flat delivery fee every order pays unless its subtotal is strictly "
+        "above `free_shipping_above`. Amounts are in `currency` (always VND)."
+    ),
+)
+async def get_shipping_policy() -> ShippingPolicyResponse:
+    return ShippingPolicyResponse(
+        currency=ORDER_CURRENCY,
+        shipping_fee=SHIPPING_FEE,
+        free_shipping_above=FREE_SHIPPING_ABOVE,
+    )
+
+
+@router.post(
+    "/orders/quote",
+    response_model=StorefrontQuoteResponse,
+    summary="Price a cart (public)",
+    description=(
+        "Prices cart lines exactly as checkout would, without creating an "
+        "order, locking rows or touching stock. Send only `plant_id`, "
+        "`pot_size_id` and `quantity`; the backend returns the unit price, "
+        "line total, localized names and image for every line, plus the "
+        "subtotal, shipping fee and total in VND.\n\n"
+        "A line that cannot be sold (unknown or inactive plant, no VND price, "
+        "pot size no longer on sale) comes back with `available: false` and "
+        "adds nothing to the totals, so the cart can flag it instead of "
+        "failing. `max_quantity` is the plant's current stock; checkout "
+        "rejects a quantity above it."
+    ),
+)
+async def post_storefront_quote(
+    payload: StorefrontQuoteRequest,
+    db: AsyncSession = Depends(get_db),
+) -> StorefrontQuoteResponse:
+    priced = await quote_order(
+        db,
+        [
+            OrderItemInput(
+                plant_id=item.plant_id,
+                quantity=item.quantity,
+                pot_size_id=item.pot_size_id,
+            )
+            for item in payload.items
+        ],
+    )
+
+    lines: list[StorefrontQuoteLine] = []
+    for line in priced.lines:
+        plant = line.plant
+        # Unknown and inactive plants expose nothing beyond the requested ids.
+        visible = plant is not None and plant.is_active
+        lines.append(
+            StorefrontQuoteLine(
+                plant_id=line.item.plant_id,
+                pot_size_id=(
+                    line.pot_size.id if line.pot_size is not None else line.item.pot_size_id
+                ),
+                quantity=line.item.quantity,
+                available=line.available,
+                slug=plant.slug if visible else None,
+                name=plant.name if visible else None,
+                name_vi=plant.name_vi if visible else None,
+                image_url=_primary_image_url(plant) if visible else None,
+                pot_size_name=line.pot_size.name if line.pot_size is not None else None,
+                unit_price=line.unit_price,
+                line_total=line.line_total,
+                max_quantity=plant.stock if visible and line.available else 0,
+            )
+        )
+
+    return StorefrontQuoteResponse(
+        currency=priced.currency,
+        lines=lines,
+        subtotal_amount=priced.subtotal,
+        shipping_fee=priced.shipping_fee,
+        total_amount=priced.total,
+        free_shipping_above=FREE_SHIPPING_ABOVE,
+        amount_to_free_shipping=amount_to_free_shipping(priced.subtotal),
     )
 
 
@@ -348,13 +447,16 @@ async def get_public_plant_by_slug(
         "`0901234567`), so the same shopper is never duplicated. A known "
         "number reuses the existing customer (keeping the name already on "
         "file), an unknown one creates a customer.\n\n"
-        "Everything is priced from the Vietnamese catalogue: item names come "
-        "from `plants.name_vi` (falling back to `name`), unit prices from "
-        "`plants.price_vi` plus the selected pot size's `price_adjustment_vi`. "
-        "The subtotal is the sum of `unit_price × quantity`, shipping is "
-        "50,000 VND unless the subtotal is above 500,000 VND, and "
-        "`total_amount` is subtotal plus shipping — prices or totals in the "
-        "request body are ignored.\n\n"
+        "Everything is priced in VND: item names come from `plants.name_vi` "
+        "(falling back to `name`), unit prices from `plants.price_vi` plus the "
+        "pot size's `price_adjustment_vi`. Pot sizes are picked by "
+        "`pot_size_id` (or the deprecated `pot_size` name); without either, "
+        "the plant's first active pot size is used. The subtotal is the sum of "
+        "`unit_price × quantity`, shipping is 50,000 VND unless the subtotal "
+        "is above 500,000 VND, and `total_amount` is subtotal plus shipping. "
+        "The response carries `currency`, `subtotal_amount`, `shipping_fee` "
+        "and `total_amount` — prices or totals in the request body are "
+        "ignored.\n\n"
         "Customer, order, item snapshots and the stock deduction commit in one "
         "transaction with the plant rows locked, so a rejected line leaves no "
         "partial order and no stock movement behind. New orders start as "
@@ -391,11 +493,12 @@ async def post_storefront_order(
                 OrderItemInput(
                     plant_id=item.plant_id,
                     quantity=item.quantity,
+                    pot_size_id=item.pot_size_id,
                     pot_size=item.pot_size,
                 )
                 for item in payload.items
             ],
-            pricing=OrderPricing.STOREFRONT,
+            source=OrderSource.STOREFRONT,
         )
     except (PlantNotFoundError, PotSizeUnavailableError) as exc:
         raise HTTPException(

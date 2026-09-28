@@ -146,6 +146,7 @@ async def test_order_references_customer(db_session: AsyncSession) -> None:
         customer_id=customer.id,
         order_number="GG-TEST-0001",
         status=OrderStatus.PENDING,
+        subtotal_amount=Decimal("100.00"),
         total_amount=Decimal("100.00"),
         shipping_address="123 Nguyen Trai, Quan 1, Ho Chi Minh City",
     )
@@ -177,6 +178,7 @@ async def test_order_item_references_order_and_plant(db_session: AsyncSession) -
         customer_id=customer.id,
         order_number="GG-TEST-0002",
         status=OrderStatus.CONFIRMED,
+        subtotal_amount=Decimal("70.00"),
         total_amount=Decimal("70.00"),
         shipping_address="456 Le Loi, Quan 3, Ho Chi Minh City",
     )
@@ -283,6 +285,7 @@ async def test_zero_quantity_rejected(db_session: AsyncSession) -> None:
         customer_id=customer.id,
         order_number="GG-TEST-0003",
         status=OrderStatus.PENDING,
+        subtotal_amount=Decimal("0.00"),
         total_amount=Decimal("0.00"),
         shipping_address="789 Address",
     )
@@ -323,6 +326,7 @@ async def test_negative_quantity_rejected(db_session: AsyncSession) -> None:
         customer_id=customer.id,
         order_number="GG-TEST-0004",
         status=OrderStatus.PENDING,
+        subtotal_amount=Decimal("0.00"),
         total_amount=Decimal("0.00"),
         shipping_address="101 Address",
     )

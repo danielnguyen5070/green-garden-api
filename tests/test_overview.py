@@ -153,6 +153,7 @@ async def _seed_order(
             f"GG-{created.strftime('%Y%m%d')}-{next(_ORDER_SEQUENCE):04d}"
         ),
         status=status,
+        subtotal_amount=total_amount,
         total_amount=total_amount,
         shipping_address="123 Nguyen Trai, District 1, HCMC",
         created_at=created,

@@ -1800,13 +1800,15 @@ async def test_public_list_image_queries_do_not_grow_with_row_count(
         # Touch the collections the storefront serializes: already loaded, so
         # a lazy load here would show up as an extra statement.
         loaded = [len(plant.images) for plant in items]
+        pot_sizes = [len(plant.pot_sizes) for plant in items]
     finally:
         event.remove(Engine, "before_cursor_execute", _record)
 
     assert len(items) == 5
     assert loaded == [3, 3, 3, 3, 3]
-    # count + rows + categories + images
-    assert len(statements) == 4
+    assert pot_sizes == [0, 0, 0, 0, 0]
+    # count + rows + categories + images + pot sizes (for `default_pot_size`)
+    assert len(statements) == 5
 
 
 @pytest.mark.asyncio

@@ -1356,7 +1356,7 @@ curl -b cookies.txt http://localhost:8000/api/v1/orders/1c9d2e3f-4a5b-6c7d-8e9f-
     {
       "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
       "quantity": 2,
-      "pot_size": "Large"
+      "pot_size_id": "8b1f0c2e-7a4d-4e3b-9c6a-2f5d1e0a9b7c"
     }
   ]
 }
@@ -1372,19 +1372,22 @@ curl -b cookies.txt http://localhost:8000/api/v1/orders/1c9d2e3f-4a5b-6c7d-8e9f-
 | `items` | array | yes | At least one line |
 | `items[].plant_id` | UUID | yes | Must exist and be active |
 | `items[].quantity` | integer | yes | `>= 1` |
-| `items[].pot_size` | string \| null | no | Active pot size **name** of that plant, matched case-insensitively |
+| `items[].pot_size_id` | UUID \| null | no | Active pot size of that plant. Omitted: the first active size by `sort_order`, then name |
+| `items[].pot_size` | string \| null | no | Deprecated: pot size **name**, matched case-insensitively. Used only when `pot_size_id` is absent |
 
 **Customer resolution.** The phone number decides everything: an existing phone reuses that customer (their stored `name` is kept, and `email` is only filled in when it was empty), an unknown phone creates a new customer. Duplicate customers can never be created for one phone.
 
-**Pricing.** The client never sets money — `unit_price`, `total_amount` or any other price in the request body is ignored. For every line the backend loads the plant, checks it is active, verifies stock, then calculates:
+**Pricing.** The client never sets money — `unit_price`, `total_amount` or any other price in the request body is ignored. Admin and storefront orders share one pricing function, always in VND:
 
 ```
-unit_price   = plant.price + pot_size.price_adjustment
-line_total   = unit_price × quantity
-total_amount = sum(line_total)
+unit_price      = plant.price_vi + pot_size.price_adjustment_vi
+line_total      = unit_price × quantity
+subtotal_amount = sum(line_total)
+shipping_fee    = 0 if subtotal_amount > 500000 else 50000
+total_amount    = subtotal_amount + shipping_fee
 ```
 
-All arithmetic uses `Decimal` / `NUMERIC(12,2)`. Prices come from the default-locale `price` / `price_adjustment` columns, and no shipping fee is added — that is a storefront rule, see [`POST /api/v1/storefront/orders`](#post-apiv1storefrontorders).
+All arithmetic uses `Decimal` / `NUMERIC(12,2)`. The order stores `currency` (`"VND"`), `subtotal_amount`, `shipping_fee` and `total_amount`; database constraints keep `total_amount = subtotal_amount + shipping_fee`. A plant without a `price_vi` cannot be ordered. The legacy `price` / `price_adjustment` columns never price an order.
 
 **Stock and transaction.** Stock is verified and deducted inside the same transaction as the customer upsert, the order and the item snapshots, with the plant rows locked (`SELECT ... FOR UPDATE`) so concurrent checkouts cannot oversell. If any line fails, nothing is written at all: no order, no customer, no stock movement. Stock never goes negative, and quantities are summed per plant when the same plant appears on several lines.
 
@@ -1396,7 +1399,7 @@ New orders always start as `pending`.
 
 | Status | When |
 |---|---|
-| `400` | Insufficient stock, inactive plant, unknown/inactive pot size, inactive customer |
+| `400` | Insufficient stock, inactive plant, no `price_vi`, unknown/inactive pot size, inactive customer |
 | `401` | Not authenticated |
 | `404` | `plant_id` does not exist |
 | `422` | Invalid body (no items, `quantity < 1`, empty shipping address, unusable phone) |
@@ -1404,7 +1407,7 @@ New orders always start as `pending`.
 ```bash
 curl -b cookies.txt -X POST http://localhost:8000/api/v1/orders \
   -H "Content-Type: application/json" \
-  -d '{"customer":{"phone":"0901234567","name":"Nguyen Van A"},"shipping_address":"123 Nguyen Trai, District 1, HCMC","items":[{"plant_id":"3fa85f64-5717-4562-b3fc-2c963f66afa6","quantity":2,"pot_size":"Large"}]}'
+  -d '{"customer":{"phone":"0901234567","name":"Nguyen Van A"},"shipping_address":"123 Nguyen Trai, District 1, HCMC","items":[{"plant_id":"3fa85f64-5717-4562-b3fc-2c963f66afa6","quantity":2,"pot_size_id":"8b1f0c2e-7a4d-4e3b-9c6a-2f5d1e0a9b7c"}]}'
 ```
 
 ---
@@ -1632,6 +1635,11 @@ Each row is a complete catalogue card — copy, pricing, stock and media — so 
         "name_vi": "Cây ăn quả",
         "slug": "fruit-trees"
       },
+      "default_pot_size": {
+        "id": "8b1f0c2e-7a4d-4e3b-9c6a-2f5d1e0a9b7c",
+        "name": "Medium",
+        "price_adjustment_vi": "0.00"
+      },
       "images": [
         {
           "id": "6d0b1c9a-77f2-4c2e-8a3d-1f5b9c7e4a20",
@@ -1651,13 +1659,16 @@ Each row is a complete catalogue card — copy, pricing, stock and media — so 
 
 | Field | Notes |
 |---|---|
-| `name` / `description` / `price` | English copy and pricing |
-| `name_vi` / `description_vi` / `price_vi` | Vietnamese copy and pricing, `null` when not translated |
+| `name` / `description` | English copy |
+| `price` | Legacy default-locale price. Never used to sell; do not display it |
+| `name_vi` / `description_vi` | Vietnamese copy, `null` when not translated |
+| `price_vi` | The VND selling price on every locale. `null` means the plant cannot be ordered |
 | `slug` | Shared by both locales |
 | `stock` | Units on hand. The detail endpoint still reports only `in_stock` |
+| `default_pot_size` | The size checkout uses when no `pot_size_id` is sent (first active by `sort_order`, then name), so a card can add it to the cart and show `price_vi + price_adjustment_vi`. `null` when the plant has no active sizes |
 | `images` | Rows from `plant_images`, ordered by `sort_order` ascending (oldest first on a tie), `[]` when the plant has no media. `type` is `image` or `video`, since both live in that table |
 
-Images are eager-loaded with **one** extra query for the whole page, so the listing stays at a fixed query count (`count` + rows + categories + images) no matter how many plants or images a page holds.
+Images and pot sizes are eager-loaded with **one** extra query each for the whole page, so the listing stays at a fixed query count (`count` + rows + categories + images + pot sizes) no matter how many plants a page holds.
 
 **Errors:** `422`
 
@@ -1702,6 +1713,81 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 
 ---
 
+### `GET /api/v1/storefront/shipping-policy`
+
+The flat delivery fee and the free-shipping threshold checkout applies. Every order pays `shipping_fee` unless its subtotal is **strictly above** `free_shipping_above`.
+
+**Response `200`**
+
+```json
+{
+  "currency": "VND",
+  "shipping_fee": "50000.00",
+  "free_shipping_above": "500000.00"
+}
+```
+
+```bash
+curl http://localhost:8000/api/v1/storefront/shipping-policy
+```
+
+---
+
+### `POST /api/v1/storefront/orders/quote`
+
+Prices a cart exactly as checkout would, without creating an order, locking rows or touching stock. The storefront cart and checkout display these numbers instead of computing their own.
+
+**Request body**
+
+```json
+{
+  "items": [
+    {
+      "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "pot_size_id": "8b1f0c2e-7a4d-4e3b-9c6a-2f5d1e0a9b7c",
+      "quantity": 2
+    }
+  ]
+}
+```
+
+`items` holds 0–50 lines; `quantity` is 1–999 and `pot_size_id` is optional (the default size is used when omitted).
+
+**Response `200`**
+
+```json
+{
+  "currency": "VND",
+  "lines": [
+    {
+      "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "pot_size_id": "8b1f0c2e-7a4d-4e3b-9c6a-2f5d1e0a9b7c",
+      "quantity": 2,
+      "available": true,
+      "slug": "monstera-deliciosa",
+      "name": "Monstera Deliciosa",
+      "name_vi": "Cây Trầu Bà Nam Mỹ",
+      "image_url": "https://cdn.example.com/monstera-front.jpg",
+      "pot_size_name": "Medium",
+      "unit_price": "650000.00",
+      "line_total": "1300000.00",
+      "max_quantity": 12
+    }
+  ],
+  "subtotal_amount": "1300000.00",
+  "shipping_fee": "0.00",
+  "total_amount": "1300000.00",
+  "free_shipping_above": "500000.00",
+  "amount_to_free_shipping": "0.00"
+}
+```
+
+Lines come back in request order. A line that cannot be sold — unknown or inactive plant, no `price_vi`, pot size no longer on sale — has `available: false`, a `0` `unit_price` / `line_total`, `max_quantity: 0`, and adds nothing to the totals, so the cart can flag it instead of failing. Unknown and inactive plants expose nothing beyond the requested IDs. `max_quantity` is the plant's current stock; checkout rejects a larger quantity. `amount_to_free_shipping` is the smallest whole-dong amount still needed to cross the threshold, `0` once shipping is free. An empty cart, or one with no sellable line, pays no shipping.
+
+**Errors:** `422` (more than 50 lines, quantity outside 1–999)
+
+---
+
 ### `POST /api/v1/storefront/orders`
 
 Public cash-on-delivery checkout. **No authentication** — shoppers have no account and never log in. No payment information is collected or stored: the shop takes the money on delivery, so there is no payment table, no `payment_method` column and no `payment_status`.
@@ -1734,21 +1820,21 @@ The checkout form only collects a name, a phone number, the shipping address, an
 | `customer.phone` | Required, trimmed, same validation as every other customer phone, then normalized to the canonical Vietnamese form. It is the customer identity |
 | `shipping_address` | Required, trimmed, at most 1000 characters. Stored as a snapshot on the order |
 | `note` | Optional, trimmed, at most 1000 characters |
-| `items` | 1–50 lines; `plant_id` UUID, `quantity` integer `>= 1`, `pot_size` optional |
+| `items` | 1–50 lines; `plant_id` UUID, `quantity` integer `>= 1`, `pot_size_id` optional UUID (`pot_size` name still accepted, deprecated) |
 
-**Vietnamese product data only.** The storefront sells the Vietnamese catalogue, so the default-locale `name`, `price` and `price_adjustment` columns are never used to price a checkout:
+**VND pricing, same as the admin panel.** Checkout uses the shared pricing described under [`POST /api/v1/orders`](#post-apiv1orders):
 
 ```
-plant_name   = plant.name_vi (falling back to plant.name when empty)
-unit_price   = plant.price_vi + pot_size.price_adjustment_vi
-subtotal     = sum(unit_price × quantity)
-shipping_fee = 0 if subtotal > 500000 else 50000
-total_amount = subtotal + shipping_fee
+plant_name      = plant.name_vi (falling back to plant.name when empty)
+unit_price      = plant.price_vi + pot_size.price_adjustment_vi
+subtotal_amount = sum(unit_price × quantity)
+shipping_fee    = 0 if subtotal_amount > 500000 else 50000
+total_amount    = subtotal_amount + shipping_fee
 ```
 
-A `NULL` `price_adjustment_vi` costs nothing extra. A plant without a `price_vi` cannot be priced at all and is rejected with `409` rather than sold at its default-locale price. All arithmetic uses `Decimal` / `NUMERIC(12,2)`.
+A `NULL` `price_adjustment_vi` costs nothing extra. A plant without a `price_vi` cannot be priced at all and is rejected with `409`. A line without `pot_size_id` uses the plant's first active size (by `sort_order`, then name). All arithmetic uses `Decimal` / `NUMERIC(12,2)`.
 
-**Shipping.** There is no shipping table and no `shipping_fee` column: the fee is folded into `orders.total_amount`. Free shipping starts *above* 500,000 VND, so a subtotal of exactly 500,000 VND still pays the 50,000 VND fee (total 550,000 VND), while 500,001 VND ships free.
+**Shipping.** The fee is stored in `orders.shipping_fee`, next to `subtotal_amount` and `total_amount`. Free shipping starts *above* 500,000 VND, so a subtotal of exactly 500,000 VND still pays the 50,000 VND fee (total 550,000 VND), while 500,001 VND ships free. The current fee and threshold are public at [`GET /api/v1/storefront/shipping-policy`](#get-apiv1storefrontshipping-policy).
 
 **Prices sent by the client are ignored.** Extra fields such as `unit_price`, `subtotal`, `shipping_fee` or `total_amount` in the request body are discarded; everything is calculated from the database.
 
@@ -1763,12 +1849,15 @@ A `NULL` `price_adjustment_vi` costs nothing extra. A plant without a `price_vi`
   "id": "1c9d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
   "order_number": "GG-20260917-0001",
   "status": "pending",
+  "currency": "VND",
+  "subtotal_amount": "430000.00",
+  "shipping_fee": "50000.00",
   "total_amount": "480000.00",
   "created_at": "2026-09-17T06:30:00Z"
 }
 ```
 
-`total_amount` already includes shipping — the example is a 430,000 VND subtotal plus the 50,000 VND fee. The confirmation carries nothing else — no customer record, no item detail, no admin fields. The shop follows the order up from the admin panel, where it appears immediately as `pending`.
+`total_amount` already includes shipping. The confirmation carries nothing else — no customer record, no item detail, no admin fields. The shop follows the order up from the admin panel, where it appears immediately as `pending`.
 
 **Errors**
 

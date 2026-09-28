@@ -19,7 +19,7 @@ from app.models.plant import (
 )
 from app.schemas.category import CategorySummary
 from app.schemas.plant_image import PlantImageResponse, PublicPlantImage
-from app.schemas.plant_pot_size import PlantPotSizeResponse
+from app.schemas.plant_pot_size import PlantPotSizeResponse, PublicPotSizeSummary
 
 __all__ = [
     "CategorySummary",
@@ -291,6 +291,8 @@ class PublicPlantListItem(BaseModel):
     is_featured: bool
     category: CategorySummary | None = None
     images: list[PublicPlantImage] = []
+    # First active pot size by `sort_order`: what "Add to cart" on a card sells.
+    default_pot_size: PublicPotSizeSummary | None = None
 
 
 class PublicPlantListResponse(BaseModel):

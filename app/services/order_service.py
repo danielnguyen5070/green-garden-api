@@ -5,9 +5,11 @@ from the request: an order item stores the plant name and the calculated unit
 price as a snapshot so the order stays historically correct after the plant is
 renamed, repriced or deactivated.
 
-Which catalogue columns an order is priced from depends on `OrderPricing`: the
-admin panel sells from the default-locale columns, the Vietnamese storefront
-from `*_vi` and with a shipping fee on top.
+VND is the only transaction currency. Every order — admin panel or storefront —
+is priced from `plants.price_vi` plus `plant_pot_sizes.price_adjustment_vi`,
+with the same shipping rule, and records its subtotal, shipping fee and total.
+`quote_order` runs the same pricing without writing anything, so the cart shows
+exactly what checkout will charge.
 
 Creating an order (customer upsert, order, items and stock deduction) happens in
 a single transaction, and stock is deducted with `SELECT ... FOR UPDATE` so two
@@ -20,7 +22,7 @@ import enum
 import uuid
 from collections import defaultdict
 from datetime import UTC, date, datetime, time, timedelta
-from decimal import Decimal
+from decimal import ROUND_FLOOR, Decimal
 from typing import Any, NamedTuple, Sequence
 
 from sqlalchemy import Select, func, or_, select
@@ -29,7 +31,7 @@ from sqlalchemy.orm import noload, selectinload
 
 from app.core.text import normalize_vn_phone
 from app.models.customer import Customer
-from app.models.order import Order, OrderStatus
+from app.models.order import ORDER_CURRENCY, Order, OrderStatus
 from app.models.order_item import OrderItem
 from app.models.plant import Plant
 from app.models.plant_pot_size import PlantPotSize
@@ -45,10 +47,11 @@ _MONEY_QUANTUM = Decimal("0.01")
 _MAX_TOTAL_AMOUNT = Decimal("9999999999.99")
 _ZERO = Decimal("0.00")
 
-# Storefront shipping: free above the threshold, flat fee at or below it.
+# Shipping: free above the threshold, flat fee at or below it.
 # Exactly 500,000 VND still pays, free shipping starts at 500,000.01 VND.
-_FREE_SHIPPING_ABOVE = Decimal("500000.00")
-_SHIPPING_FEE = Decimal("50000.00")
+FREE_SHIPPING_ABOVE = Decimal("500000.00")
+SHIPPING_FEE = Decimal("50000.00")
+_ONE_DONG = Decimal("1")
 
 # Forward-only pipeline; cancellation is allowed from any non-terminal status.
 _STATUS_FLOW: tuple[OrderStatus, ...] = (
@@ -61,17 +64,15 @@ _STATUS_FLOW: tuple[OrderStatus, ...] = (
 _TERMINAL_STATUSES = frozenset({OrderStatus.COMPLETED, OrderStatus.CANCELLED})
 
 
-class OrderPricing(str, enum.Enum):
+class OrderSource(str, enum.Enum):
     """
-    Which catalogue columns and fees an order is priced from.
+    Where an order was placed. Pricing is identical for both.
 
-    `DEFAULT` is the admin panel: the default-locale `name`, `price` and
-    `price_adjustment`, with no shipping fee. `STOREFRONT` is the Vietnamese
-    shop: `name_vi`, `price_vi` and `price_adjustment_vi`, the phone stored in
-    its canonical Vietnamese form, and the shipping fee folded into the total.
+    `STOREFRONT` orders store the phone in its canonical Vietnamese form and
+    raise a new-order notification for the admin inbox; `ADMIN` orders do not.
     """
 
-    DEFAULT = "default"
+    ADMIN = "admin"
     STOREFRONT = "storefront"
 
 
@@ -107,11 +108,42 @@ class OrderTotalTooLargeError(Exception):
 
 
 class OrderItemInput(NamedTuple):
-    """One requested line: what to buy, how many and in which pot size."""
+    """
+    One requested line: what to buy, how many and in which pot size.
+
+    `pot_size_id` wins over the deprecated `pot_size` name. With neither, a
+    plant that has active pot sizes is sold in its first one by `sort_order`.
+    """
 
     plant_id: uuid.UUID
     quantity: int
-    pot_size: str | None
+    pot_size_id: uuid.UUID | None = None
+    pot_size: str | None = None
+
+
+class PricedLine(NamedTuple):
+    """One requested line after pricing; `error` is set when it cannot be sold."""
+
+    item: OrderItemInput
+    plant: Plant | None
+    pot_size: PlantPotSize | None
+    unit_price: Decimal
+    line_total: Decimal
+    error: PlantUnavailableError | PlantNotFoundError | None
+
+    @property
+    def available(self) -> bool:
+        return self.error is None
+
+
+class OrderPrice(NamedTuple):
+    """Totals over the sellable lines, in `ORDER_CURRENCY`."""
+
+    lines: list[PricedLine]
+    subtotal: Decimal
+    shipping_fee: Decimal
+    total: Decimal
+    currency: str = ORDER_CURRENCY
 
 
 def _detail_options() -> tuple[Any, ...]:
@@ -136,39 +168,103 @@ def _quantize(amount: Decimal) -> Decimal:
     return amount.quantize(_MONEY_QUANTUM)
 
 
-def _snapshot_name(plant: Plant, pricing: OrderPricing) -> str:
-    """The product name to freeze on the line, in the locale being sold."""
-    if pricing is OrderPricing.STOREFRONT:
-        return (plant.name_vi or "").strip() or plant.name
-    return plant.name
+def _snapshot_name(plant: Plant) -> str:
+    """The product name to freeze on the line: Vietnamese, else the default."""
+    return (plant.name_vi or "").strip() or plant.name
 
 
-def _unit_price(
-    plant: Plant,
-    pot_size: PlantPotSize | None,
-    pricing: OrderPricing,
-) -> Decimal:
-    """Catalogue price for one unit, including the pot size adjustment."""
-    if pricing is OrderPricing.STOREFRONT:
-        if plant.price_vi is None:
-            # No Vietnamese price means no price at all here: the storefront
-            # must never fall back to the default-locale `price`.
-            raise PlantUnavailableError(f"Plant '{plant.name}' is not available")
-        base = plant.price_vi
-        # A missing Vietnamese adjustment costs nothing extra.
-        adjustment = _ZERO if pot_size is None else pot_size.price_adjustment_vi or _ZERO
-    else:
-        base = plant.price
-        adjustment = _ZERO if pot_size is None else pot_size.price_adjustment
-
-    return _quantize(base + adjustment)
+def _unit_price(plant: Plant, pot_size: PlantPotSize | None) -> Decimal:
+    """VND price for one unit, including the pot size adjustment."""
+    if plant.price_vi is None:
+        # No VND price means no price at all: never fall back to `price`.
+        raise PlantUnavailableError(f"Plant '{plant.name}' is not available")
+    # A missing VND adjustment costs nothing extra.
+    adjustment = _ZERO if pot_size is None else pot_size.price_adjustment_vi or _ZERO
+    return _quantize(plant.price_vi + adjustment)
 
 
-def _shipping_fee(subtotal: Decimal, pricing: OrderPricing) -> Decimal:
-    """Flat storefront delivery fee, waived above the free-shipping threshold."""
-    if pricing is not OrderPricing.STOREFRONT:
+def shipping_fee_for(subtotal: Decimal) -> Decimal:
+    """Flat delivery fee, waived above the free-shipping threshold."""
+    return _ZERO if subtotal > FREE_SHIPPING_ABOVE else SHIPPING_FEE
+
+
+def amount_to_free_shipping(subtotal: Decimal) -> Decimal:
+    """Smallest whole-dong amount that still has to be added for free shipping."""
+    if subtotal > FREE_SHIPPING_ABOVE:
         return _ZERO
-    return _ZERO if subtotal > _FREE_SHIPPING_ABOVE else _SHIPPING_FEE
+    remaining = (FREE_SHIPPING_ABOVE - subtotal).to_integral_value(rounding=ROUND_FLOOR)
+    return _quantize(remaining + _ONE_DONG)
+
+
+def _resolve_pot_size(
+    plant: Plant,
+    item: OrderItemInput,
+    pot_sizes: Sequence[PlantPotSize],
+) -> PlantPotSize | None:
+    """Pick the requested active pot size, or the plant's default one."""
+    if item.pot_size_id is not None:
+        match = next((size for size in pot_sizes if size.id == item.pot_size_id), None)
+        if match is None:
+            raise PotSizeUnavailableError(
+                f"Pot size '{item.pot_size_id}' is not available "
+                f"for plant '{plant.name}'"
+            )
+        return match
+    if item.pot_size is not None:
+        wanted = item.pot_size.lower()
+        match = next((size for size in pot_sizes if size.name.lower() == wanted), None)
+        if match is None:
+            raise PotSizeUnavailableError(
+                f"Pot size '{item.pot_size}' is not available "
+                f"for plant '{plant.name}'"
+            )
+        return match
+    return pot_sizes[0] if pot_sizes else None
+
+
+def price_order(
+    items: Sequence[OrderItemInput],
+    plants: dict[uuid.UUID, Plant],
+    pot_sizes: dict[uuid.UUID, list[PlantPotSize]],
+) -> OrderPrice:
+    """
+    Price every line from already-loaded catalogue rows, writing nothing.
+
+    A line that cannot be sold (unknown or inactive plant, no VND price,
+    unusable pot size) carries its error and adds nothing to the subtotal.
+    Stock is not checked here: `create_order` enforces it under row locks and
+    the quote reports it per line.
+    """
+    lines: list[PricedLine] = []
+    subtotal = _ZERO
+    for item in items:
+        plant = plants.get(item.plant_id)
+        if plant is None:
+            lines.append(
+                PricedLine(item, None, None, _ZERO, _ZERO, PlantNotFoundError("Plant not found"))
+            )
+            continue
+        try:
+            if not plant.is_active:
+                raise PlantUnavailableError(f"Plant '{plant.name}' is not available")
+            pot_size = _resolve_pot_size(plant, item, pot_sizes.get(plant.id, []))
+            unit_price = _unit_price(plant, pot_size)
+        except PlantUnavailableError as exc:
+            lines.append(PricedLine(item, plant, None, _ZERO, _ZERO, exc))
+            continue
+        line_total = _quantize(unit_price * item.quantity)
+        subtotal += line_total
+        lines.append(PricedLine(item, plant, pot_size, unit_price, line_total, None))
+
+    subtotal = _quantize(subtotal)
+    has_sellable_line = any(line.available for line in lines)
+    shipping = shipping_fee_for(subtotal) if has_sellable_line else _ZERO
+    return OrderPrice(
+        lines=lines,
+        subtotal=subtotal,
+        shipping_fee=shipping,
+        total=subtotal + shipping,
+    )
 
 
 async def _generate_order_number(session: AsyncSession) -> str:
@@ -203,8 +299,8 @@ async def _lock_plants(
 async def _load_pot_sizes(
     session: AsyncSession,
     plant_ids: set[uuid.UUID],
-) -> dict[tuple[uuid.UUID, str], PlantPotSize]:
-    """Active pot sizes keyed by plant and lowercased name."""
+) -> dict[uuid.UUID, list[PlantPotSize]]:
+    """Active pot sizes per plant, default (lowest `sort_order`) first."""
     result = await session.execute(
         select(PlantPotSize)
         .where(
@@ -212,11 +308,35 @@ async def _load_pot_sizes(
             PlantPotSize.is_active.is_(True),
         )
         .options(noload(PlantPotSize.plant))
+        .order_by(PlantPotSize.sort_order, PlantPotSize.name)
     )
-    return {
-        (pot_size.plant_id, pot_size.name.lower()): pot_size
-        for pot_size in result.scalars().all()
-    }
+    by_plant: dict[uuid.UUID, list[PlantPotSize]] = defaultdict(list)
+    for pot_size in result.scalars().all():
+        by_plant[pot_size.plant_id].append(pot_size)
+    return by_plant
+
+
+async def quote_order(
+    session: AsyncSession,
+    items: Sequence[OrderItemInput],
+) -> OrderPrice:
+    """Price a cart exactly as `create_order` would, without locks or writes."""
+    plant_ids = {item.plant_id for item in items}
+    plants: dict[uuid.UUID, Plant] = {}
+    if plant_ids:
+        result = await session.execute(
+            select(Plant)
+            .where(Plant.id.in_(plant_ids))
+            .options(
+                selectinload(Plant.images),
+                noload(Plant.category),
+                noload(Plant.pot_sizes),
+                noload(Plant.order_items),
+            )
+        )
+        plants = {plant.id: plant for plant in result.scalars().all()}
+    pot_sizes = await _load_pot_sizes(session, plant_ids) if plant_ids else {}
+    return price_order(items, plants, pot_sizes)
 
 
 def _apply_filters(
@@ -308,19 +428,17 @@ async def create_order(
     shipping_address: str,
     note: str | None,
     items: Sequence[OrderItemInput],
-    pricing: OrderPricing = OrderPricing.DEFAULT,
+    source: OrderSource = OrderSource.ADMIN,
 ) -> Order:
     """
     Create an order from the current catalogue state in one transaction.
 
     Customer upsert, order, item snapshots and stock deduction are committed
-    together, so a rejected line (unknown/inactive plant, unusable pot size,
-    insufficient stock) leaves no partial order and no stock movement behind.
-
-    `pricing` picks the locale to sell in and whether shipping is charged; see
-    `OrderPricing`.
+    together, so a rejected line (unknown/inactive plant, no VND price,
+    unusable pot size, insufficient stock) leaves no partial order and no stock
+    movement behind.
     """
-    if pricing is OrderPricing.STOREFRONT:
+    if source is OrderSource.STOREFRONT:
         # Canonicalise before the lookup so `+84…` and `0…` are one customer.
         customer_phone = normalize_vn_phone(customer_phone)
 
@@ -354,34 +472,22 @@ async def create_order(
                     f"requested {quantity}, available {plant.stock}"
                 )
 
-        subtotal = Decimal("0.00")
-        lines: list[tuple[Plant, OrderItemInput, str | None, Decimal]] = []
-        for item in items:
-            plant = plants[item.plant_id]
-            pot_size: PlantPotSize | None = None
-            if item.pot_size is not None:
-                pot_size = pot_sizes.get((plant.id, item.pot_size.lower()))
-                if pot_size is None:
-                    raise PotSizeUnavailableError(
-                        f"Pot size '{item.pot_size}' is not available "
-                        f"for plant '{plant.name}'"
-                    )
+        priced = price_order(items, plants, pot_sizes)
+        for line in priced.lines:
+            if line.error is not None:
+                raise line.error
 
-            pot_size_name = pot_size.name if pot_size is not None else None
-            unit_price = _unit_price(plant, pot_size, pricing)
-            subtotal += unit_price * item.quantity
-            lines.append((plant, item, pot_size_name, unit_price))
-
-        subtotal = _quantize(subtotal)
-        total_amount = subtotal + _shipping_fee(subtotal, pricing)
-        if total_amount > _MAX_TOTAL_AMOUNT:
+        if priced.total > _MAX_TOTAL_AMOUNT:
             raise OrderTotalTooLargeError("Order total is too large to be processed")
 
         order = Order(
             customer_id=customer.id,
             order_number=await _generate_order_number(session),
             status=OrderStatus.PENDING,
-            total_amount=total_amount,
+            currency=priced.currency,
+            subtotal_amount=priced.subtotal,
+            shipping_fee=priced.shipping_fee,
+            total_amount=priced.total,
             shipping_address=shipping_address,
             note=note,
         )
@@ -392,20 +498,20 @@ async def create_order(
             [
                 OrderItem(
                     order_id=order.id,
-                    plant_id=plant.id,
-                    plant_name=_snapshot_name(plant, pricing),
-                    quantity=item.quantity,
-                    unit_price=unit_price,
-                    pot_size=pot_size_name,
+                    plant_id=line.item.plant_id,
+                    plant_name=_snapshot_name(plants[line.item.plant_id]),
+                    quantity=line.item.quantity,
+                    unit_price=line.unit_price,
+                    pot_size=line.pot_size.name if line.pot_size is not None else None,
                 )
-                for plant, item, pot_size_name, unit_price in lines
+                for line in priced.lines
             ]
         )
 
         for plant_id, quantity in requested.items():
             plants[plant_id].stock -= quantity
 
-        if pricing is OrderPricing.STOREFRONT:
+        if source is OrderSource.STOREFRONT:
             queue_new_order_notification(
                 session,
                 order_id=order.id,

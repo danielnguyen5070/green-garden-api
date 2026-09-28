@@ -11,6 +11,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import event, func, select
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.text import normalize_vn_phone
@@ -70,6 +71,8 @@ async def _seed_plant(
         "is_active": True,
     }
     values.update(overrides)
+    # Orders are priced in VND only, so a sellable plant needs `price_vi`.
+    values.setdefault("price_vi", values["price"])
     plant = Plant(**values)
     session.add(plant)
     await session.commit()
@@ -90,6 +93,7 @@ async def _seed_pot_size(
         "is_active": True,
     }
     values.update(overrides)
+    values.setdefault("price_adjustment_vi", values["price_adjustment"])
     pot_size = PlantPotSize(**values)
     session.add(pot_size)
     await session.commit()
@@ -303,6 +307,10 @@ async def test_create_order_success(
     assert item["quantity"] == 2
     assert item["unit_price"] == "300000.00"
     assert item["pot_size"] is None
+    assert body["currency"] == "VND"
+    assert body["subtotal_amount"] == "600000.00"
+    # Above the 500,000 VND threshold: shipping is free
+    assert body["shipping_fee"] == "0.00"
     assert body["total_amount"] == "600000.00"
     assert "created_at" in body
     assert "updated_at" in body
@@ -437,13 +445,13 @@ async def test_create_order_applies_pot_size_adjustment(
 
 
 @pytest.mark.asyncio
-async def test_create_order_prices_from_the_default_locale_columns(
+async def test_create_order_prices_in_vnd_with_shipping(
     client: AsyncClient,
     active_admin: Admin,
     test_category: Category,
     test_db_session: AsyncSession,
 ) -> None:
-    """The admin panel keeps selling at `price`, with no shipping fee added."""
+    """Admin orders are priced exactly like the storefront: VND plus shipping."""
     await _login(client, active_admin)
     plant = await _seed_plant(
         test_db_session,
@@ -456,7 +464,7 @@ async def test_create_order_prices_from_the_default_locale_columns(
         test_db_session,
         plant,
         price_adjustment=Decimal("100000.00"),
-        price_adjustment_vi=Decimal("1.00"),
+        price_adjustment_vi=Decimal("9000.00"),
     )
 
     body = await _create_order(
@@ -466,10 +474,28 @@ async def test_create_order_prices_from_the_default_locale_columns(
     )
 
     item = body["items"][0]
-    assert item["plant_name"] == plant.name
-    assert item["unit_price"] == "400000.00"
-    # The total is exactly the subtotal: admin orders carry no shipping fee
-    assert body["total_amount"] == "400000.00"
+    assert item["plant_name"] == "Cây Trầu Bà"
+    # 111000 VND price + 9000 VND adjustment; the USD columns are never used
+    assert item["unit_price"] == "120000.00"
+    assert body["currency"] == "VND"
+    assert body["subtotal_amount"] == "120000.00"
+    assert body["shipping_fee"] == "50000.00"
+    assert body["total_amount"] == "170000.00"
+
+
+@pytest.mark.asyncio
+async def test_create_order_rejects_a_plant_without_a_vnd_price(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    await _login(client, active_admin)
+    plant = await _seed_plant(test_db_session, test_category, price_vi=None)
+
+    response = await client.post(ORDERS_PREFIX, json=_order_payload(plant))
+    assert response.status_code == 400
+    assert await _stock(client, plant) == 20
 
 
 @pytest.mark.asyncio
@@ -1356,10 +1382,21 @@ async def test_checkout_returns_the_confirmation_fields_only(
     assert response.status_code == 201, response.text
     body = response.json()
 
-    assert set(body) == {"id", "order_number", "status", "total_amount", "created_at"}
+    assert set(body) == {
+        "id",
+        "order_number",
+        "status",
+        "currency",
+        "subtotal_amount",
+        "shipping_fee",
+        "total_amount",
+        "created_at",
+    }
     assert ORDER_NUMBER_PATTERN.match(body["order_number"])
     assert body["status"] == "pending"
-    # 240000.00 subtotal + 50000.00 shipping
+    assert body["currency"] == "VND"
+    assert body["subtotal_amount"] == "240000.00"
+    assert body["shipping_fee"] == "50000.00"
     assert body["total_amount"] == "290000.00"
 
 
@@ -1980,7 +2017,17 @@ async def test_checkout_charges_shipping_up_to_the_threshold(
     )
 
     assert response.status_code == 201, response.text
-    assert response.json()["total_amount"] == expected_total
+    body = response.json()
+    assert body["total_amount"] == expected_total
+    assert Decimal(body["subtotal_amount"]) + Decimal(body["shipping_fee"]) == Decimal(
+        expected_total
+    )
+
+    stored = await test_db_session.get(Order, UUID(body["id"]))
+    assert stored is not None
+    await test_db_session.refresh(stored)
+    assert stored.shipping_fee == Decimal(body["shipping_fee"])
+    assert stored.subtotal_amount == price_vi * quantity
 
 
 @pytest.mark.asyncio
@@ -2186,3 +2233,340 @@ async def test_order_reads_avoid_n_plus_one(
     assert detail_queries <= 3
     assert detail.customer.id == customer.id
     assert len(detail.items) == 1
+
+
+# --------------------------------------------------------------------------
+# Pot size by id and the default pot size
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_checkout_picks_the_pot_size_by_id(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    plant = await _seed_vi_plant(
+        test_db_session, test_category, price_vi=Decimal("200000.00")
+    )
+    await _seed_vi_pot_size(test_db_session, plant, name="Small", sort_order=0)
+    large = await _seed_vi_pot_size(
+        test_db_session,
+        plant,
+        name="Large",
+        sort_order=1,
+        price_adjustment_vi=Decimal("90000.00"),
+    )
+
+    response = await _checkout(
+        client,
+        plant,
+        items=[
+            {"plant_id": str(plant.id), "quantity": 1, "pot_size_id": str(large.id)}
+        ],
+    )
+    assert response.status_code == 201, response.text
+
+    items = await _checkout_items(test_db_session, response.json()["id"])
+    assert items[0].pot_size == "Large"
+    assert items[0].unit_price == Decimal("290000.00")
+
+
+@pytest.mark.asyncio
+async def test_checkout_defaults_to_the_first_active_pot_size(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    """A line without a pot size is sold in the size the detail page preselects."""
+    plant = await _seed_vi_plant(
+        test_db_session, test_category, price_vi=Decimal("200000.00")
+    )
+    await _seed_vi_pot_size(
+        test_db_session,
+        plant,
+        name="Retired",
+        sort_order=0,
+        is_active=False,
+        price_adjustment_vi=Decimal("1000.00"),
+    )
+    await _seed_vi_pot_size(
+        test_db_session,
+        plant,
+        name="Large",
+        sort_order=2,
+        price_adjustment_vi=Decimal("90000.00"),
+    )
+    await _seed_vi_pot_size(
+        test_db_session,
+        plant,
+        name="Small",
+        sort_order=1,
+        price_adjustment_vi=Decimal("30000.00"),
+    )
+
+    response = await _checkout(client, plant)
+    assert response.status_code == 201, response.text
+
+    items = await _checkout_items(test_db_session, response.json()["id"])
+    assert items[0].pot_size == "Small"
+    assert items[0].unit_price == Decimal("230000.00")
+
+
+@pytest.mark.asyncio
+async def test_checkout_unknown_pot_size_id_returns_404(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    plant = await _seed_vi_plant(test_db_session, test_category)
+    other = await _seed_vi_plant(test_db_session, test_category)
+    others_size = await _seed_vi_pot_size(test_db_session, other)
+
+    response = await _checkout(
+        client,
+        plant,
+        items=[
+            {
+                "plant_id": str(plant.id),
+                "quantity": 1,
+                "pot_size_id": str(others_size.id),
+            }
+        ],
+    )
+    assert response.status_code == 404
+    assert await _db_stock(test_db_session, plant) == 20
+
+
+# --------------------------------------------------------------------------
+# Quote and shipping policy
+# --------------------------------------------------------------------------
+
+QUOTE_PATH = "/api/v1/storefront/orders/quote"
+
+
+@pytest.mark.asyncio
+async def test_shipping_policy_is_public_and_in_vnd(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/storefront/shipping-policy")
+    assert response.status_code == 200
+    assert response.json() == {
+        "currency": "VND",
+        "shipping_fee": "50000.00",
+        "free_shipping_above": "500000.00",
+    }
+
+
+@pytest.mark.asyncio
+async def test_quote_matches_the_order_checkout_creates(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    first = await _seed_vi_plant(
+        test_db_session, test_category, price_vi=Decimal("100000.00")
+    )
+    second = await _seed_vi_plant(
+        test_db_session, test_category, price_vi=Decimal("60000.50")
+    )
+    size = await _seed_vi_pot_size(test_db_session, second)
+    items = [
+        {"plant_id": str(first.id), "quantity": 2},
+        {"plant_id": str(second.id), "quantity": 3, "pot_size_id": str(size.id)},
+    ]
+
+    quote = await client.post(QUOTE_PATH, json={"items": items})
+    assert quote.status_code == 200, quote.text
+    quoted = quote.json()
+
+    assert quoted["currency"] == "VND"
+    first_line, second_line = quoted["lines"]
+    assert first_line["available"] is True
+    assert first_line["name_vi"] == first.name_vi
+    assert first_line["slug"] == first.slug
+    assert first_line["unit_price"] == "100000.00"
+    assert first_line["line_total"] == "200000.00"
+    assert first_line["max_quantity"] == 20
+    assert second_line["pot_size_id"] == str(size.id)
+    assert second_line["pot_size_name"] == size.name
+    # 60000.50 + 60000.00 adjustment
+    assert second_line["unit_price"] == "120000.50"
+    # 200000.00 + 3 × 120000.50 = 560001.50: above the threshold, ships free
+    assert quoted["subtotal_amount"] == "560001.50"
+    assert quoted["shipping_fee"] == "0.00"
+    assert quoted["total_amount"] == "560001.50"
+    assert quoted["amount_to_free_shipping"] == "0.00"
+    # A quote never touches stock
+    assert await _db_stock(test_db_session, first) == 20
+
+    order = await _checkout(client, first, items=items)
+    assert order.status_code == 201, order.text
+    placed = order.json()
+    for field in ("currency", "subtotal_amount", "shipping_fee", "total_amount"):
+        assert placed[field] == quoted[field]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("price_vi", "shipping_fee", "amount_to_free"),
+    [
+        pytest.param(Decimal("499000.00"), "50000.00", "1001.00", id="499000"),
+        pytest.param(Decimal("500000.00"), "50000.00", "1.00", id="500000-still-pays"),
+        pytest.param(Decimal("500000.50"), "0.00", "0.00", id="500000.50-free"),
+    ],
+)
+async def test_quote_reports_shipping_at_the_threshold(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+    price_vi: Decimal,
+    shipping_fee: str,
+    amount_to_free: str,
+) -> None:
+    plant = await _seed_vi_plant(test_db_session, test_category, price_vi=price_vi)
+
+    response = await client.post(
+        QUOTE_PATH, json={"items": [{"plant_id": str(plant.id), "quantity": 1}]}
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["shipping_fee"] == shipping_fee
+    assert body["amount_to_free_shipping"] == amount_to_free
+    assert body["free_shipping_above"] == "500000.00"
+
+
+@pytest.mark.asyncio
+async def test_quote_flags_lines_that_cannot_be_sold(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    sellable = await _seed_vi_plant(
+        test_db_session, test_category, price_vi=Decimal("120000.00")
+    )
+    unpriced = await _seed_plant(test_db_session, test_category, price_vi=None)
+    inactive = await _seed_vi_plant(test_db_session, test_category, is_active=False)
+    retired = await _seed_vi_plant(test_db_session, test_category)
+    retired_size = await _seed_vi_pot_size(test_db_session, retired, is_active=False)
+    unknown_id = uuid4()
+
+    response = await client.post(
+        QUOTE_PATH,
+        json={
+            "items": [
+                {"plant_id": str(sellable.id), "quantity": 1},
+                {"plant_id": str(unpriced.id), "quantity": 1},
+                {"plant_id": str(inactive.id), "quantity": 1},
+                {
+                    "plant_id": str(retired.id),
+                    "quantity": 1,
+                    "pot_size_id": str(retired_size.id),
+                },
+                {"plant_id": str(unknown_id), "quantity": 1},
+            ]
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+
+    assert [line["available"] for line in body["lines"]] == [
+        True,
+        False,
+        False,
+        False,
+        False,
+    ]
+    for line in body["lines"][1:]:
+        assert line["line_total"] == "0.00"
+        assert line["max_quantity"] == 0
+    # Unknown and inactive plants reveal nothing but the requested id
+    for line in (body["lines"][2], body["lines"][4]):
+        assert line["name"] is None
+        assert line["slug"] is None
+    assert body["lines"][4]["plant_id"] == str(unknown_id)
+    # Only the sellable line is charged
+    assert body["subtotal_amount"] == "120000.00"
+    assert body["total_amount"] == "170000.00"
+
+
+@pytest.mark.asyncio
+async def test_quote_of_an_empty_cart_charges_nothing(client: AsyncClient) -> None:
+    response = await client.post(QUOTE_PATH, json={"items": []})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["lines"] == []
+    assert body["subtotal_amount"] == "0.00"
+    assert body["shipping_fee"] == "0.00"
+    assert body["total_amount"] == "0.00"
+
+
+@pytest.mark.asyncio
+async def test_catalogue_lists_the_default_pot_size(
+    client: AsyncClient,
+    test_category: Category,
+    test_db_session: AsyncSession,
+) -> None:
+    with_sizes = await _seed_vi_plant(test_db_session, test_category)
+    await _seed_vi_pot_size(test_db_session, with_sizes, name="Large", sort_order=2)
+    small = await _seed_vi_pot_size(
+        test_db_session,
+        with_sizes,
+        name="Small",
+        sort_order=1,
+        price_adjustment_vi=Decimal("20000.00"),
+    )
+    without_sizes = await _seed_vi_plant(test_db_session, test_category)
+
+    response = await client.get(
+        "/api/v1/storefront/plants",
+        params={"category_id": str(test_category.id), "page_size": 100},
+    )
+    assert response.status_code == 200
+    rows = {row["id"]: row for row in response.json()["items"]}
+
+    assert rows[str(with_sizes.id)]["default_pot_size"] == {
+        "id": str(small.id),
+        "name": "Small",
+        "price_adjustment_vi": "20000.00",
+    }
+    assert rows[str(without_sizes.id)]["default_pot_size"] is None
+
+
+# --------------------------------------------------------------------------
+# Stored totals
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_every_order_total_is_subtotal_plus_shipping_in_vnd(
+    test_db_session: AsyncSession,
+) -> None:
+    """Holds for migrated history as well as new orders (DB check constraint)."""
+    result = await test_db_session.execute(
+        select(func.count())
+        .select_from(Order)
+        .where(
+            (Order.total_amount != Order.subtotal_amount + Order.shipping_fee)
+            | (Order.currency != "VND")
+        )
+    )
+    assert result.scalar_one() == 0
+
+
+@pytest.mark.asyncio
+async def test_order_total_must_equal_subtotal_plus_shipping(
+    test_db_session: AsyncSession,
+) -> None:
+    customer = await _seed_customer(test_db_session)
+    test_db_session.add(
+        Order(
+            customer_id=customer.id,
+            order_number=f"GG-TEST-{uuid4().hex[:12]}",
+            subtotal_amount=Decimal("100000.00"),
+            shipping_fee=Decimal("50000.00"),
+            total_amount=Decimal("100000.00"),
+            shipping_address="123 Nguyen Trai, District 1, HCMC",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await test_db_session.commit()
+    await test_db_session.rollback()

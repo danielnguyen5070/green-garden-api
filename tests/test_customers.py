@@ -636,6 +636,7 @@ async def test_deactivated_customer_keeps_order_history(
         customer_id=customer.id,
         order_number=f"GG-TEST-{uuid4().hex[:12]}",
         status=OrderStatus.COMPLETED,
+        subtotal_amount=Decimal("850000.00"),
         total_amount=Decimal("850000.00"),
         shipping_address="123 Nguyen Trai, District 1, HCMC",
     )

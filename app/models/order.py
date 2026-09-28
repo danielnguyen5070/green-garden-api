@@ -24,6 +24,9 @@ if TYPE_CHECKING:
     from app.models.order_item import OrderItem
 
 
+ORDER_CURRENCY = "VND"
+
+
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
@@ -39,6 +42,15 @@ class Order(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "orders"
     __table_args__ = (
         CheckConstraint("total_amount >= 0", name="ck_orders_total_amount_non_negative"),
+        CheckConstraint("currency = 'VND'", name="ck_orders_currency_vnd"),
+        CheckConstraint(
+            "subtotal_amount >= 0", name="ck_orders_subtotal_amount_non_negative"
+        ),
+        CheckConstraint("shipping_fee >= 0", name="ck_orders_shipping_fee_non_negative"),
+        CheckConstraint(
+            "total_amount = subtotal_amount + shipping_fee",
+            name="ck_orders_total_is_subtotal_plus_shipping",
+        ),
         Index("ix_orders_customer_id", "customer_id"),
         Index("ix_orders_status", "status"),
         Index("ix_orders_created_at", "created_at"),
@@ -59,6 +71,20 @@ class Order(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
         default=OrderStatus.PENDING,
         server_default=OrderStatus.PENDING.value,
+    )
+    # VND is the only transaction currency; the column makes that explicit.
+    currency: Mapped[str] = mapped_column(
+        String(3),
+        nullable=False,
+        default=ORDER_CURRENCY,
+        server_default=ORDER_CURRENCY,
+    )
+    subtotal_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    shipping_fee: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        default=Decimal("0.00"),
+        server_default="0",
     )
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     shipping_address: Mapped[str] = mapped_column(Text, nullable=False)

@@ -1,8 +1,9 @@
-"""Order request/response schemas (admin only).
+"""Order request/response schemas.
 
-The client never sends prices: `unit_price` and `total_amount` are always
-calculated by the backend from the current plant price plus the selected pot
-size adjustment, so any money field in the request body is ignored.
+The client never sends prices: `unit_price`, `subtotal_amount`, `shipping_fee`
+and `total_amount` are always calculated by the backend, in VND, from the
+current plant price plus the selected pot size adjustment, so any money field in
+the request body is ignored.
 """
 
 from __future__ import annotations
@@ -26,9 +27,14 @@ __all__ = [
     "OrderListResponse",
     "OrderResponse",
     "OrderStatusUpdate",
+    "ShippingPolicyResponse",
     "StorefrontOrderCreate",
     "StorefrontOrderCustomer",
     "StorefrontOrderResponse",
+    "StorefrontQuoteItem",
+    "StorefrontQuoteLine",
+    "StorefrontQuoteRequest",
+    "StorefrontQuoteResponse",
 ]
 
 # `shipping_address` and `note` are TEXT columns: these caps only keep the
@@ -36,6 +42,7 @@ __all__ = [
 _MAX_SHIPPING_ADDRESS_LENGTH = 1000
 _MAX_NOTE_LENGTH = 1000
 _MAX_CHECKOUT_ITEMS = 50
+_MAX_QUOTE_QUANTITY = 999
 
 
 class StorefrontOrderCustomer(BaseModel):
@@ -75,7 +82,12 @@ class OrderCustomerCreate(StorefrontOrderCustomer):
 class OrderItemCreate(BaseModel):
     plant_id: UUID
     quantity: int = Field(ge=1)
-    pot_size: str | None = Field(default=None, max_length=100)
+    pot_size_id: UUID | None = None
+    pot_size: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Deprecated: pot size name. Send `pot_size_id` instead.",
+    )
 
     @field_validator("pot_size")
     @classmethod
@@ -179,6 +191,9 @@ class OrderResponse(BaseModel):
     id: UUID
     order_number: str
     status: OrderStatus
+    currency: str
+    subtotal_amount: Decimal
+    shipping_fee: Decimal
     total_amount: Decimal
     shipping_address: str
     note: str | None
@@ -203,5 +218,63 @@ class StorefrontOrderResponse(BaseModel):
     id: UUID
     order_number: str
     status: OrderStatus
+    currency: str
+    subtotal_amount: Decimal
+    shipping_fee: Decimal
     total_amount: Decimal
     created_at: datetime
+
+
+class StorefrontQuoteItem(BaseModel):
+    """A cart line: only the selection, never a price."""
+
+    plant_id: UUID
+    quantity: int = Field(ge=1, le=_MAX_QUOTE_QUANTITY)
+    pot_size_id: UUID | None = None
+
+
+class StorefrontQuoteRequest(BaseModel):
+    items: list[StorefrontQuoteItem] = Field(max_length=_MAX_CHECKOUT_ITEMS)
+
+
+class StorefrontQuoteLine(BaseModel):
+    """
+    One priced cart line.
+
+    `available` is false when the plant is unknown, inactive, has no VND price
+    or the pot size is no longer on sale; such a line costs nothing and the
+    catalogue fields may be null. `max_quantity` is the plant's current stock.
+    """
+
+    plant_id: UUID
+    pot_size_id: UUID | None
+    quantity: int
+    available: bool
+    slug: str | None
+    name: str | None
+    name_vi: str | None
+    image_url: str | None
+    pot_size_name: str | None
+    unit_price: Decimal
+    line_total: Decimal
+    max_quantity: int
+
+
+class StorefrontQuoteResponse(BaseModel):
+    """What checkout would charge right now, in `currency` (always VND)."""
+
+    currency: str
+    lines: list[StorefrontQuoteLine]
+    subtotal_amount: Decimal
+    shipping_fee: Decimal
+    total_amount: Decimal
+    free_shipping_above: Decimal
+    amount_to_free_shipping: Decimal
+
+
+class ShippingPolicyResponse(BaseModel):
+    """Flat fee, waived when the subtotal is strictly above `free_shipping_above`."""
+
+    currency: str
+    shipping_fee: Decimal
+    free_shipping_above: Decimal

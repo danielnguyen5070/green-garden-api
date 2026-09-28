@@ -72,14 +72,18 @@ def _list_options(*, with_images: bool = False) -> tuple[Any, ...]:
     """
     Listings only need the category — skip media and variant collections.
 
-    The storefront catalogue also renders media, so it opts into the images
-    with `selectinload`: one extra `IN` query for the whole page instead of one
-    query per plant.
+    The storefront catalogue also renders media and the default pot size, so it
+    opts into images and pot sizes with `selectinload`: one extra `IN` query
+    each for the whole page instead of one query per plant.
     """
     return (
         selectinload(Plant.category).noload(Category.plants),
         selectinload(Plant.images) if with_images else noload(Plant.images),
-        noload(Plant.pot_sizes),
+        (
+            selectinload(Plant.pot_sizes).noload(PlantPotSize.plant)
+            if with_images
+            else noload(Plant.pot_sizes)
+        ),
         noload(Plant.order_items),
     )
 
