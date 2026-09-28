@@ -119,6 +119,7 @@ def _public_list_item(plant: Plant) -> PublicPlantListItem:
         default_pot_size=(
             PublicPotSizeSummary.model_validate(pot_sizes[0]) if pot_sizes else None
         ),
+        updated_at=plant.updated_at,
     )
 
 

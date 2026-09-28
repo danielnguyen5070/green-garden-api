@@ -273,7 +273,8 @@ class PublicPlantListItem(BaseModel):
     """Storefront listing row — card data for the homepage, no SKU bookkeeping.
 
     Carries the copy, pricing and media the catalogue renders, so a listing
-    never has to fetch each plant's detail endpoint.
+    never has to fetch each plant's detail endpoint. `updated_at` is the only
+    audit timestamp exposed; the sitemap uses it as `<lastmod>`.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -293,6 +294,7 @@ class PublicPlantListItem(BaseModel):
     images: list[PublicPlantImage] = []
     # First active pot size by `sort_order`: what "Add to cart" on a card sells.
     default_pot_size: PublicPotSizeSummary | None = None
+    updated_at: datetime
 
 
 class PublicPlantListResponse(BaseModel):

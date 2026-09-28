@@ -1731,7 +1731,7 @@ async def test_public_list_hides_admin_fields(
         assert "sku" not in item
         assert "is_active" not in item
         assert "created_at" not in item
-        assert "updated_at" not in item
+        assert item["updated_at"]
 
 
 @pytest.mark.asyncio

@@ -747,7 +747,7 @@ async def test_public_categories_accessible_without_auth(
     for item in items:
         assert "is_active" not in item
         assert "created_at" not in item
-        assert "updated_at" not in item
+        assert item["updated_at"]
 
 
 @pytest.mark.asyncio

@@ -143,7 +143,11 @@ class CategoryListResponse(BaseModel):
 
 
 class PublicCategoryListItem(BaseModel):
-    """Storefront row — no audit timestamps or status bookkeeping."""
+    """Storefront row — no status bookkeeping.
+
+    `updated_at` is the only audit timestamp exposed; the sitemap uses it as
+    `<lastmod>`.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -155,6 +159,7 @@ class PublicCategoryListItem(BaseModel):
     description_vi: str | None
     image_url: str | None
     sort_order: int
+    updated_at: datetime
 
 
 class PublicCategoryListResponse(BaseModel):
