@@ -34,6 +34,8 @@ def _review_payload(**overrides: object) -> dict:
         "name": "Nguyen Van A",
         "rating": 5,
         "content": "Cây đẹp, giao hàng nhanh.",
+        "website": "",
+        "form_elapsed_ms": 5000,
     }
     payload.update(overrides)
     return payload

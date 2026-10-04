@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.security import normalize_email
 from app.models.order import OrderStatus
+from app.schemas.bot_protection import BotSignals
 from app.schemas.customer import validate_phone
 
 __all__ = [
@@ -121,12 +122,13 @@ class OrderCreate(BaseModel):
         return stripped or None
 
 
-class StorefrontOrderCreate(BaseModel):
+class StorefrontOrderCreate(BotSignals):
     """
     Public checkout payload (cash on delivery).
 
-    Only the name, phone, address, note and lines are read. Any price or total
-    in the body is ignored — the backend prices the order from the catalogue.
+    Only the name, phone, address, note and lines are read, plus the bot
+    signals checked before the order is created. Any price or total in the
+    body is ignored — the backend prices the order from the catalogue.
     """
 
     customer: StorefrontOrderCustomer

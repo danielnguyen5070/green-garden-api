@@ -30,6 +30,8 @@ CUSTOMERS_PREFIX = "/api/v1/customers"
 ORDERS_PREFIX = "/api/v1/orders"
 PLANTS_PREFIX = "/api/v1/plants"
 CHECKOUT_PATH = "/api/v1/storefront/orders"
+# Bot signals of a person who took their time filling in the checkout form.
+HUMAN_BOT_SIGNALS = {"website": "", "form_elapsed_ms": 5000}
 
 ORDER_NUMBER_PATTERN = re.compile(r"^GG-\d{8}-\d{4}$")
 
@@ -201,6 +203,7 @@ def _checkout_payload(plant: Plant, **overrides: object) -> dict:
         "shipping_address": "123 Nguyễn Huệ, Quận 1, TP.HCM",
         "note": "Giao giờ hành chính",
         "items": [{"plant_id": str(plant.id), "quantity": 1}],
+        **HUMAN_BOT_SIGNALS,
     }
     payload.update(overrides)
     return payload
@@ -1545,6 +1548,7 @@ async def test_checkout_ignores_prices_sent_by_the_frontend(
         json={
             "customer": {"phone": _unique_phone(), "name": "Nguyễn Văn A"},
             "shipping_address": "123 Nguyễn Huệ, Quận 1, TP.HCM",
+            **HUMAN_BOT_SIGNALS,
             "total_amount": "1.00",
             "subtotal": "1.00",
             "shipping_fee": "0.00",

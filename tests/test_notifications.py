@@ -82,6 +82,8 @@ async def _checkout(client: AsyncClient, plant: Plant, **overrides: object):
         "customer": {"phone": _unique_phone(), "name": "Nguyễn Văn A"},
         "shipping_address": "123 Nguyễn Huệ, Quận 1, TP.HCM",
         "items": [{"plant_id": str(plant.id), "quantity": 1}],
+        "website": "",
+        "form_elapsed_ms": 5000,
     }
     payload.update(overrides)
     return await client.post(CHECKOUT_PATH, json=payload)

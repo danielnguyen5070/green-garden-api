@@ -22,6 +22,7 @@ from app.models.plant import Plant
 from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
 from app.models.review import ReviewStatus
+from app.schemas.bot_protection import BotSignals
 from app.schemas.category import (
     PublicCategoryListItem,
     PublicCategoryListResponse,
@@ -47,6 +48,12 @@ from app.schemas.review import (
     PublicReviewListResponse,
     ReviewCreate,
     ReviewResponse,
+)
+from app.services.bot_protection_service import (
+    BotSignalRejectedError,
+    CheckoutRateLimitedError,
+    check_checkout_phone_limit,
+    verify_bot_signals,
 )
 from app.services.category_service import list_categories
 from app.services.customer_service import CustomerInactiveError
@@ -84,6 +91,21 @@ router = APIRouter(prefix="/storefront", tags=["storefront"])
 _PLANT_NOT_FOUND = {
     status.HTTP_404_NOT_FOUND: {"description": "Plant not found or inactive"}
 }
+_BOT_REJECTED = {
+    status.HTTP_403_FORBIDDEN: {
+        "description": "Honeypot filled or form submitted too quickly"
+    }
+}
+
+
+def _verify_bot_signals_or_403(payload: BotSignals) -> None:
+    try:
+        verify_bot_signals(payload)
+    except BotSignalRejectedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Submission rejected",
+        ) from exc
 
 
 def _sorted_images(plant: Plant) -> list[PlantImage]:
@@ -229,13 +251,17 @@ async def get_public_reviews(
     description=(
         "Submit a website-wide customer review without authentication. The "
         "review is stored as `pending` and does not appear publicly until an "
-        "admin approves it."
+        "admin approves it.\n\n"
+        "Bot protection: the hidden `website` field must be empty and "
+        "`form_elapsed_ms` must be at least 3000, otherwise `403`."
     ),
+    responses=_BOT_REJECTED,
 )
 async def post_public_review(
     payload: ReviewCreate,
     db: AsyncSession = Depends(get_db),
 ) -> ReviewResponse:
+    _verify_bot_signals_or_403(payload)
     review = await create_review(
         db,
         name=payload.name,
@@ -276,15 +302,18 @@ async def get_public_plant_reviews(
     description=(
         "Submit a review of one active plant without authentication. The "
         "review is stored as `pending` and does not appear publicly until an "
-        "admin approves it."
+        "admin approves it.\n\n"
+        "Bot protection: the hidden `website` field must be empty and "
+        "`form_elapsed_ms` must be at least 3000, otherwise `403`."
     ),
-    responses=_PLANT_NOT_FOUND,
+    responses={**_PLANT_NOT_FOUND, **_BOT_REJECTED},
 )
 async def post_public_plant_review(
     slug: str,
     payload: ReviewCreate,
     db: AsyncSession = Depends(get_db),
 ) -> ReviewResponse:
+    _verify_bot_signals_or_403(payload)
     plant = await _active_plant_or_404(db, slug)
     review = await create_review(
         db,
@@ -552,11 +581,19 @@ async def post_storefront_quote(
         "Customer, order, item snapshots and the stock deduction commit in one "
         "transaction with the plant rows locked, so a rejected line leaves no "
         "partial order and no stock movement behind. New orders start as "
-        "`pending`; the shop moves them on from the admin panel."
+        "`pending`; the shop moves them on from the admin panel.\n\n"
+        "Bot protection: the hidden `website` field must be empty and "
+        "`form_elapsed_ms` must be at least 3000, otherwise `403`. Each "
+        "normalized phone number may place at most 3 orders per hour; beyond "
+        "that the response is `429` with a `Retry-After` header in seconds."
     ),
     responses={
+        **_BOT_REJECTED,
         status.HTTP_400_BAD_REQUEST: {
             "description": "Order total too large, or the customer is deactivated"
+        },
+        status.HTTP_429_TOO_MANY_REQUESTS: {
+            "description": "Too many recent orders for this phone number"
         },
         status.HTTP_404_NOT_FOUND: {
             "description": "Plant or selected pot size does not exist"
@@ -573,6 +610,16 @@ async def post_storefront_order(
     payload: StorefrontOrderCreate,
     db: AsyncSession = Depends(get_db),
 ) -> StorefrontOrderResponse:
+    _verify_bot_signals_or_403(payload)
+    try:
+        await check_checkout_phone_limit(db, payload.customer.phone)
+    except CheckoutRateLimitedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many orders for this phone number. Please try again later.",
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
+
     try:
         order = await create_order(
             db,

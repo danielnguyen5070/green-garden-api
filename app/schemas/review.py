@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.review import ReviewStatus
+from app.schemas.bot_protection import BotSignals
 
 __all__ = [
     "PublicReviewListItem",
@@ -21,7 +22,7 @@ __all__ = [
 ]
 
 
-class ReviewCreate(BaseModel):
+class ReviewCreate(BotSignals):
     """Public storefront submission — always starts as `pending`."""
 
     name: str = Field(min_length=1, max_length=255)

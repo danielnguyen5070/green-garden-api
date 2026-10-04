@@ -13,6 +13,7 @@ from app.schemas.auth import (
     AuthResponse,
     MessageResponse,
 )
+from app.schemas.bot_protection import BotSignals
 from app.schemas.category import (
     CategoryCreate,
     CategoryListItem,
@@ -103,6 +104,7 @@ __all__ = [
     "AdminStatusUpdate",
     "AdminUpdate",
     "AuthResponse",
+    "BotSignals",
     "CategoryCreate",
     "CategoryListItem",
     "CategoryListResponse",
