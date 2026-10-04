@@ -8,6 +8,7 @@ from app.api.v1 import customers as customers_router
 from app.api.v1 import notifications as notifications_router
 from app.api.v1 import orders as orders_router
 from app.api.v1 import overview as overview_router
+from app.api.v1 import payments as payments_router
 from app.api.v1 import plants as plants_router
 from app.api.v1 import reviews as reviews_router
 from app.api.v1 import storefront as storefront_router
@@ -23,4 +24,5 @@ api_router.include_router(overview_router.router)
 api_router.include_router(reviews_router.router)
 api_router.include_router(notifications_router.router)
 api_router.include_router(storefront_router.router)
+api_router.include_router(payments_router.router)
 api_router.include_router(chat_router.router)

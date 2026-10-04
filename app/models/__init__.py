@@ -4,8 +4,13 @@ from app.models.admin import Admin
 from app.models.base import Base
 from app.models.category import Category
 from app.models.customer import Customer
-from app.models.order import Order, OrderStatus
+from app.models.order import Order, OrderStatus, PaymentMethod, PaymentStatus
 from app.models.order_item import OrderItem
+from app.models.payment_transaction import (
+    PaymentMatchStatus,
+    PaymentProvider,
+    PaymentTransaction,
+)
 from app.models.plant import (
     Plant,
     PlantDifficulty,
@@ -29,6 +34,11 @@ __all__ = [
     "Order",
     "OrderStatus",
     "OrderItem",
+    "PaymentMatchStatus",
+    "PaymentMethod",
+    "PaymentProvider",
+    "PaymentStatus",
+    "PaymentTransaction",
     "Plant",
     "PlantDifficulty",
     "PlantGrowthRate",

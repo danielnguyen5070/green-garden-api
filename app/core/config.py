@@ -62,6 +62,14 @@ class Settings(BaseSettings):
     storefront_revalidate_url: str | None = None
     storefront_revalidate_secret: str | None = None
 
+    # SePay bank transfer: a fixed VA (or account) plus a per-order payment code.
+    # Bank transfer is offered only when the account number and webhook key are set.
+    sepay_webhook_api_key: str | None = None
+    sepay_bank_code: str = "MB"
+    sepay_bank_name: str | None = None
+    sepay_account_number: str | None = None
+    sepay_account_holder: str | None = None
+
     @field_validator("auth_cookie_domain", mode="before")
     @classmethod
     def _normalize_auth_cookie_domain(cls, value: object) -> str | None:
@@ -78,6 +86,10 @@ class Settings(BaseSettings):
         "deepseek_api_key",
         "storefront_revalidate_url",
         "storefront_revalidate_secret",
+        "sepay_webhook_api_key",
+        "sepay_bank_name",
+        "sepay_account_number",
+        "sepay_account_holder",
         mode="before",
     )
     @classmethod
@@ -88,6 +100,9 @@ class Settings(BaseSettings):
             stripped = value.strip()
             return stripped or None
         return value  # type: ignore[return-value]
+
+    def bank_transfer_enabled(self) -> bool:
+        return bool(self.sepay_account_number and self.sepay_webhook_api_key)
 
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

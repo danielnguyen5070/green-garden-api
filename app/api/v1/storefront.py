@@ -1,4 +1,4 @@
-"""Public storefront routes: the catalogue and the cash-on-delivery checkout.
+"""Public storefront routes: the catalogue and the COD / bank-transfer checkout.
 
 No authentication anywhere here. Only active plants are exposed, and checkout
 reuses `app.services.order_service` — the same VND pricing, snapshots and stock
@@ -15,9 +15,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.text import normalize_slug
-from app.models.order import ORDER_CURRENCY
+from app.models.order import ORDER_CURRENCY, Order, PaymentMethod
 from app.models.plant import Plant
 from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
@@ -35,6 +36,7 @@ from app.schemas.order import (
     StorefrontQuoteRequest,
     StorefrontQuoteResponse,
 )
+from app.schemas.payment import BankTransferInfo, StorefrontPaymentStatusResponse
 from app.schemas.plant import (
     PublicPlantDetail,
     PublicPlantListItem,
@@ -62,14 +64,17 @@ from app.services.order_service import (
     SHIPPING_FEE,
     InsufficientStockError,
     OrderItemInput,
+    OrderNotFoundError,
     OrderSource,
     OrderTotalTooLargeError,
     PlantUnavailableError,
     PotSizeUnavailableError,
     amount_to_free_shipping,
     create_order,
+    get_order,
     quote_order,
 )
+from app.services.payment_service import bank_transfer_info
 from app.services.plant_service import (
     PlantNotFoundError,
     SearchLocale,
@@ -96,6 +101,11 @@ _BOT_REJECTED = {
         "description": "Honeypot filled or form submitted too quickly"
     }
 }
+
+
+def _payment_info(order: Order) -> BankTransferInfo | None:
+    details = bank_transfer_info(order)
+    return BankTransferInfo(**details._asdict()) if details is not None else None
 
 
 def _verify_bot_signals_or_403(payload: BotSignals) -> None:
@@ -560,9 +570,15 @@ async def post_storefront_quote(
     status_code=status.HTTP_201_CREATED,
     summary="Create a public customer order",
     description=(
-        "Public cash-on-delivery checkout. **No authentication**: shoppers have "
-        "no account and never log in, and no payment information is collected "
-        "or stored.\n\n"
+        "Public checkout. **No authentication**: shoppers have no account and "
+        "never log in, and no card or bank credentials are collected.\n\n"
+        "`payment_method` is `cod` (default, cash on delivery) or "
+        "`bank_transfer`. A bank-transfer order gets a unique "
+        "`payment_reference` and the response's `payment` block carries the "
+        "bank, account/VA, amount, reference and a VietQR image URL. Its "
+        "`payment_status` stays `pending` until the SePay webhook confirms a "
+        "matching transfer. Bank transfer returns `503` when it is not "
+        "configured on the server.\n\n"
         "The customer is identified by phone, normalized to the canonical "
         "Vietnamese form first (`+84901234567` and `84901234567` both become "
         "`0901234567`), so the same shopper is never duplicated. A known "
@@ -604,6 +620,9 @@ async def post_storefront_quote(
                 "Vietnamese storefront"
             )
         },
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "description": "Bank transfer is not configured"
+        },
     },
 )
 async def post_storefront_order(
@@ -611,6 +630,14 @@ async def post_storefront_order(
     db: AsyncSession = Depends(get_db),
 ) -> StorefrontOrderResponse:
     _verify_bot_signals_or_403(payload)
+    if (
+        payload.payment_method is PaymentMethod.BANK_TRANSFER
+        and not get_settings().bank_transfer_enabled()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Bank transfer is not available right now",
+        )
     try:
         await check_checkout_phone_limit(db, payload.customer.phone)
     except CheckoutRateLimitedError as exc:
@@ -638,6 +665,7 @@ async def post_storefront_order(
                 for item in payload.items
             ],
             source=OrderSource.STOREFRONT,
+            payment_method=payload.payment_method,
         )
     except (PlantNotFoundError, PotSizeUnavailableError) as exc:
         raise HTTPException(
@@ -655,4 +683,39 @@ async def post_storefront_order(
             detail=str(exc),
         ) from exc
 
-    return StorefrontOrderResponse.model_validate(order)
+    response = StorefrontOrderResponse.model_validate(order)
+    response.payment = _payment_info(order)
+    return response
+
+
+@router.get(
+    "/orders/{order_id}/payment",
+    response_model=StorefrontPaymentStatusResponse,
+    summary="Payment status of a placed order (public)",
+    description=(
+        "Lets the thank-you page poll whether a bank transfer has been "
+        "confirmed. Returns only the payment method, status and transfer "
+        "details — never customer data. The order id is the unguessable UUID "
+        "returned by checkout."
+    ),
+    responses={status.HTTP_404_NOT_FOUND: {"description": "Order not found"}},
+)
+async def get_storefront_order_payment(
+    order_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> StorefrontPaymentStatusResponse:
+    try:
+        order = await get_order(db, order_id)
+    except OrderNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    return StorefrontPaymentStatusResponse(
+        order_id=order.id,
+        order_number=order.order_number,
+        payment_method=order.payment_method,
+        payment_status=order.payment_status,
+        paid_at=order.paid_at,
+        payment=_payment_info(order),
+    )

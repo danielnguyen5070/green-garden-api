@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import enum
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     CheckConstraint,
+    DateTime,
     Enum,
     ForeignKey,
     Index,
@@ -36,6 +38,18 @@ class OrderStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
+class PaymentMethod(str, enum.Enum):
+    COD = "cod"
+    BANK_TRANSFER = "bank_transfer"
+
+
+class PaymentStatus(str, enum.Enum):
+    """`paid` is only ever set by a verified bank transfer; COD stays `pending`."""
+
+    PENDING = "pending"
+    PAID = "paid"
+
+
 class Order(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """Customer order with snapshot shipping address (no separate address table)."""
 
@@ -54,6 +68,7 @@ class Order(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Index("ix_orders_customer_id", "customer_id"),
         Index("ix_orders_status", "status"),
         Index("ix_orders_created_at", "created_at"),
+        Index("ix_orders_payment_status", "payment_status"),
     )
 
     customer_id: Mapped[uuid.UUID] = mapped_column(
@@ -89,6 +104,33 @@ class Order(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     shipping_address: Mapped[str] = mapped_column(Text, nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payment_method: Mapped[PaymentMethod] = mapped_column(
+        Enum(
+            PaymentMethod,
+            name="payment_method",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=PaymentMethod.COD,
+        server_default=PaymentMethod.COD.value,
+    )
+    payment_status: Mapped[PaymentStatus] = mapped_column(
+        Enum(
+            PaymentStatus,
+            name="payment_status",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=PaymentStatus.PENDING,
+        server_default=PaymentStatus.PENDING.value,
+    )
+    # Transfer content the customer must send; only set for bank transfers.
+    payment_reference: Mapped[str | None] = mapped_column(
+        String(32), unique=True, nullable=True
+    )
+    paid_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     customer: Mapped[Customer] = relationship("Customer", back_populates="orders")
     items: Mapped[list[OrderItem]] = relationship(

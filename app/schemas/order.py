@@ -15,9 +15,10 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.security import normalize_email
-from app.models.order import OrderStatus
+from app.models.order import OrderStatus, PaymentMethod, PaymentStatus
 from app.schemas.bot_protection import BotSignals
 from app.schemas.customer import validate_phone
+from app.schemas.payment import BankTransferInfo
 
 __all__ = [
     "OrderCreate",
@@ -124,14 +125,16 @@ class OrderCreate(BaseModel):
 
 class StorefrontOrderCreate(BotSignals):
     """
-    Public checkout payload (cash on delivery).
+    Public checkout payload (cash on delivery or bank transfer).
 
-    Only the name, phone, address, note and lines are read, plus the bot
-    signals checked before the order is created. Any price or total in the
-    body is ignored — the backend prices the order from the catalogue.
+    Only the name, phone, address, note, lines and payment method are read,
+    plus the bot signals checked before the order is created. Any price or
+    total in the body is ignored — the backend prices the order from the
+    catalogue. Without `payment_method` the order is cash on delivery.
     """
 
     customer: StorefrontOrderCustomer
+    payment_method: PaymentMethod = PaymentMethod.COD
     shipping_address: str = Field(
         min_length=1,
         max_length=_MAX_SHIPPING_ADDRESS_LENGTH,
@@ -199,6 +202,10 @@ class OrderResponse(BaseModel):
     total_amount: Decimal
     shipping_address: str
     note: str | None
+    payment_method: PaymentMethod
+    payment_status: PaymentStatus
+    payment_reference: str | None
+    paid_at: datetime | None
     customer: OrderCustomerResponse
     items: list[OrderItemResponse] = []
     created_at: datetime
@@ -213,7 +220,12 @@ class OrderListResponse(BaseModel):
 
 
 class StorefrontOrderResponse(BaseModel):
-    """Checkout confirmation — what the thank-you page needs, nothing more."""
+    """
+    Checkout confirmation — what the thank-you page needs, nothing more.
+
+    `payment` carries the transfer details for bank-transfer orders and is
+    null for cash on delivery.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -224,6 +236,11 @@ class StorefrontOrderResponse(BaseModel):
     subtotal_amount: Decimal
     shipping_fee: Decimal
     total_amount: Decimal
+    payment_method: PaymentMethod
+    payment_status: PaymentStatus
+    payment_reference: str | None
+    paid_at: datetime | None
+    payment: BankTransferInfo | None = None
     created_at: datetime
 
 

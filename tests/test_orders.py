@@ -1393,10 +1393,19 @@ async def test_checkout_returns_the_confirmation_fields_only(
         "subtotal_amount",
         "shipping_fee",
         "total_amount",
+        "payment_method",
+        "payment_status",
+        "payment_reference",
+        "paid_at",
+        "payment",
         "created_at",
     }
     assert ORDER_NUMBER_PATTERN.match(body["order_number"])
     assert body["status"] == "pending"
+    assert body["payment_method"] == "cod"
+    assert body["payment_status"] == "pending"
+    assert body["payment_reference"] is None
+    assert body["payment"] is None
     assert body["currency"] == "VND"
     assert body["subtotal_amount"] == "240000.00"
     assert body["shipping_fee"] == "50000.00"

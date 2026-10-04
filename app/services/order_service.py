@@ -31,7 +31,7 @@ from sqlalchemy.orm import noload, selectinload
 
 from app.core.text import normalize_vn_phone
 from app.models.customer import Customer
-from app.models.order import ORDER_CURRENCY, Order, OrderStatus
+from app.models.order import ORDER_CURRENCY, Order, OrderStatus, PaymentMethod
 from app.models.order_item import OrderItem
 from app.models.plant import Plant
 from app.models.plant_pot_size import PlantPotSize
@@ -268,6 +268,11 @@ def price_order(
     )
 
 
+def payment_reference_for(order_number: str) -> str:
+    """`GG-20261004-0001` -> `GG202610040001`: banks drop dashes from content."""
+    return order_number.replace("-", "")
+
+
 async def _generate_order_number(session: AsyncSession) -> str:
     """Allocate the next `GG-YYYYMMDD-NNNN` for today, serialized by a lock."""
     prefix = f"{_ORDER_NUMBER_PREFIX}-{datetime.now(UTC).strftime('%Y%m%d')}-"
@@ -430,6 +435,7 @@ async def create_order(
     note: str | None,
     items: Sequence[OrderItemInput],
     source: OrderSource = OrderSource.ADMIN,
+    payment_method: PaymentMethod = PaymentMethod.COD,
 ) -> Order:
     """
     Create an order from the current catalogue state in one transaction.
@@ -438,6 +444,9 @@ async def create_order(
     together, so a rejected line (unknown/inactive plant, no VND price,
     unusable pot size, insufficient stock) leaves no partial order and no stock
     movement behind.
+
+    A bank-transfer order also gets its `payment_reference`: the order number
+    without dashes, which the customer puts in the transfer content.
     """
     if source is OrderSource.STOREFRONT:
         # Canonicalise before the lookup so `+84…` and `0…` are one customer.
@@ -481,10 +490,17 @@ async def create_order(
         if priced.total > _MAX_TOTAL_AMOUNT:
             raise OrderTotalTooLargeError("Order total is too large to be processed")
 
+        order_number = await _generate_order_number(session)
         order = Order(
             customer_id=customer.id,
-            order_number=await _generate_order_number(session),
+            order_number=order_number,
             status=OrderStatus.PENDING,
+            payment_method=payment_method,
+            payment_reference=(
+                payment_reference_for(order_number)
+                if payment_method is PaymentMethod.BANK_TRANSFER
+                else None
+            ),
             currency=priced.currency,
             subtotal_amount=priced.subtotal,
             shipping_fee=priced.shipping_fee,
