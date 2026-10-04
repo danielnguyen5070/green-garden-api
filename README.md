@@ -262,6 +262,24 @@ docker compose exec api alembic revision --autogenerate -m "describe_change"
 
 Do **not** use SQLAlchemy `create_all()` for production schema management.
 
+## Chatbot knowledge (Weaviate)
+
+Plants are synced to Weaviate automatically when they are created or updated. Shop FAQs are not: their copy lives in the storefront (`green-garden/messages/{vi,en}.json` + `config/faq.ts`) and reaches the chatbot through the `app/data/faqs.json` snapshot.
+
+After editing FAQs in the storefront:
+
+```bash
+# 1. In green-garden: regenerate the snapshot (writes ../green-garden-api/app/data/faqs.json)
+npm run export:faq
+
+# 2. Commit app/data/faqs.json in this repo and deploy the API
+
+# 3. Replace all FAQ objects in Weaviate (also re-indexes plants)
+docker compose exec api python -m scripts.reindex_knowledge
+```
+
+The reindex wipes existing FAQ objects first, so removed or renamed questions disappear. The chatbot searches them through the `search_shop_faq` tool. Requires `WEAVIATE_ENABLED=true` in the running container (recreate it with `docker compose up -d api` after changing `.env`).
+
 ## Tests
 
 ```bash

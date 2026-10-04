@@ -27,6 +27,13 @@ Routing rules (use tools when needed — do not invent live business data):
 - Stock / availability / "còn hàng" → always call check_stock.
 - Plant care or descriptive knowledge (light, watering, soil, characteristics, \
 growing tips) → call search_plant_knowledge.
+- Shop and buying questions (where to buy, Cái Mơn seedling quality, ordering, \
+delivery time, shipping cost, shipping to provinces, packing, payment / COD, \
+tracking, returns, damaged plants, first steps after receiving plants, time to \
+fruit) → call search_shop_faq. For general care questions, you may call both \
+search_shop_faq and search_plant_knowledge.
+- Answer shop policy questions only from search_shop_faq results. If nothing \
+relevant is found, say so and suggest messaging the shop on Zalo 0386569374.
 - Greetings and general chat with no catalogue need → answer directly (no tools).
 - If a question needs both business data and knowledge, call multiple tools.
 

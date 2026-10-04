@@ -13,6 +13,7 @@ from app.services.ai.knowledge.blog_indexer import (
 from app.services.ai.knowledge.faq_indexer import (
     delete_faq_knowledge,
     index_faq,
+    load_faq_snapshot,
     reindex_all_faqs,
     update_faq_knowledge,
 )
@@ -29,7 +30,10 @@ from app.services.ai.knowledge.plant_indexer import (
     sync_plant_knowledge_safe,
     update_plant_knowledge,
 )
-from app.services.ai.knowledge.retriever import search_plant_knowledge
+from app.services.ai.knowledge.retriever import (
+    search_faq_knowledge,
+    search_plant_knowledge,
+)
 from app.services.ai.knowledge.weaviate import (
     COLLECTION_NAME,
     PLANT_COLLECTION_NAME,
@@ -60,10 +64,12 @@ __all__ = [
     "index_faq",
     "index_plant",
     "knowledge_object_uuid",
+    "load_faq_snapshot",
     "prepare_plant_chunks",
     "reindex_all_blogs",
     "reindex_all_faqs",
     "reindex_all_plants",
+    "search_faq_knowledge",
     "search_plant_knowledge",
     "sync_plant_knowledge",
     "sync_plant_knowledge_safe",

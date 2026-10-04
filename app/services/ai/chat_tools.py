@@ -11,7 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.text import escape_ilike_pattern, normalize_search_query, normalize_slug
 from app.models.plant import Plant
-from app.services.ai.knowledge.retriever import search_plant_knowledge
+from app.services.ai.knowledge.retriever import (
+    search_faq_knowledge,
+    search_plant_knowledge,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +93,37 @@ CHAT_TOOLS: list[dict[str, Any]] = [
                         "type": "string",
                         "enum": ["vi", "en"],
                         "description": "Preferred knowledge locale when known.",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_shop_faq",
+            "description": (
+                "Search the shop's official FAQ: where to buy, Cái Mơn seedling "
+                "quality, how to order, delivery time and shipping cost, shipping "
+                "to other provinces, packing, payment / COD, tracking, returns, "
+                "damaged plants, what to do after receiving plants, and how long "
+                "until trees bear fruit. Use for any shop policy or buying question."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "The customer's question in natural language, e.g. "
+                            "'Phí ship bao nhiêu' or 'có giao đi tỉnh không'."
+                        ),
+                    },
+                    "locale": {
+                        "type": "string",
+                        "enum": ["vi", "en"],
+                        "description": "Language of the customer's question.",
                     },
                 },
                 "required": ["query"],
@@ -205,6 +239,15 @@ async def search_plant_knowledge_tool(
     return search_plant_knowledge(query, locale=locale)
 
 
+async def search_shop_faq_tool(
+    *,
+    query: str,
+    locale: str | None = None,
+) -> dict[str, Any]:
+    """Wrap FAQ retrieval for Function Calling."""
+    return search_faq_knowledge(query, locale=locale)
+
+
 async def execute_chat_tool(
     name: str,
     arguments_json: str,
@@ -231,6 +274,12 @@ async def execute_chat_tool(
         if name == "search_plant_knowledge":
             locale = raw_args.get("locale")
             return await search_plant_knowledge_tool(
+                query=str(raw_args.get("query") or ""),
+                locale=str(locale) if locale else None,
+            )
+        if name == "search_shop_faq":
+            locale = raw_args.get("locale")
+            return await search_shop_faq_tool(
                 query=str(raw_args.get("query") or ""),
                 locale=str(locale) if locale else None,
             )

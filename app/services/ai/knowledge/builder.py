@@ -389,14 +389,20 @@ def prepare_plant_chunks(
 
 def build_faq_knowledge_text(faq: Any, *, locale: Locale) -> str:
     if locale == "vi":
+        category = getattr(faq, "category_label_vi", None)
         question = getattr(faq, "question_vi", None)
         answer = getattr(faq, "answer_vi", None)
-        q_label, a_label = "Câu hỏi", "Trả lời"
+        c_label, q_label, a_label = "Chủ đề", "Câu hỏi", "Trả lời"
     else:
+        category = getattr(faq, "category_label", None)
         question = getattr(faq, "question", None)
         answer = getattr(faq, "answer", None)
-        q_label, a_label = "Question", "Answer"
-    return _join_sections([(q_label, question), (a_label, answer)])
+        c_label, q_label, a_label = "Topic", "Question", "Answer"
+    if _clean_text(question) is None and _clean_text(answer) is None:
+        return ""
+    return _join_sections(
+        [(c_label, category), (q_label, question), (a_label, answer)]
+    )
 
 
 def faq_title(faq: Any, *, locale: Locale) -> str:

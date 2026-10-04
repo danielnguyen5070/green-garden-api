@@ -1,13 +1,18 @@
 """Index / update / delete FAQ knowledge in Weaviate.
 
-FAQ SQLAlchemy models are not required yet — pass any object with the expected
-attributes (`id`, `slug`, `question`/`answer` and optional `_vi` fields).
+FAQ copy is owned by the storefront (`green-garden` messages). It is exported
+to `app/data/faqs.json` with `npm run export:faq`, and this module indexes that
+snapshot. Any object with `id`, `slug`, `question`/`answer` and optional `_vi`
+fields can also be passed directly.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,12 +26,31 @@ from app.services.ai.knowledge.builder import (
 from app.services.ai.knowledge.weaviate import (
     KnowledgeSourceType,
     delete_knowledge_by_source,
+    delete_knowledge_by_source_type,
     ensure_knowledge_collection,
     get_weaviate_client,
     upsert_knowledge_objects,
 )
 
 logger = logging.getLogger(__name__)
+
+FAQ_SNAPSHOT_PATH = Path(__file__).resolve().parents[3] / "data" / "faqs.json"
+
+
+def load_faq_snapshot(path: Path | None = None) -> list[SimpleNamespace] | None:
+    """Load exported storefront FAQs. Returns None when the snapshot is missing."""
+    snapshot = path or FAQ_SNAPSHOT_PATH
+    if not snapshot.is_file():
+        return None
+
+    data = json.loads(snapshot.read_text(encoding="utf-8"))
+    faqs: list[SimpleNamespace] = []
+    for item in data.get("items", []):
+        faq_id = str(item.get("id") or "").strip()
+        if not faq_id:
+            continue
+        faqs.append(SimpleNamespace(**{**item, "id": faq_id, "slug": faq_id}))
+    return faqs
 
 
 def _faq_chunks(faq: Any) -> list[dict[str, Any]]:
@@ -69,7 +93,7 @@ def update_faq_knowledge(
     *,
     settings: Settings | None = None,
 ) -> int:
-    """Re-index FAQ knowledge after PostgreSQL source data changes."""
+    """Re-index FAQ knowledge after the source copy changes."""
     return index_faq(faq, settings=settings)
 
 
@@ -90,40 +114,41 @@ def delete_faq_knowledge(
 
 
 async def reindex_all_faqs(
-    session: AsyncSession,
+    session: AsyncSession | None = None,
     *,
     settings: Settings | None = None,
     faqs: Sequence[Any] | None = None,
 ) -> int:
-    """Re-index FAQ rows. Pass `faqs` or load from a future FAQ model if present."""
+    """Replace all FAQ knowledge with `faqs` or the exported snapshot.
+
+    Existing FAQ objects are wiped first so removed or renamed questions do not
+    linger. A missing snapshot leaves the index untouched.
+    """
     cfg = settings or get_settings()
     if not cfg.weaviate_enabled:
         logger.warning("Weaviate disabled; skipping FAQ reindex")
         return 0
 
-    rows = list(faqs) if faqs is not None else await _load_faqs(session)
-    if not rows:
-        logger.info("No FAQ records to index")
+    rows = list(faqs) if faqs is not None else load_faq_snapshot()
+    if rows is None:
+        logger.warning(
+            "FAQ snapshot not found at %s; run `npm run export:faq` in green-garden",
+            FAQ_SNAPSHOT_PATH,
+        )
         return 0
 
-    total = 0
-    for faq in rows:
-        is_active = getattr(faq, "is_active", True)
-        if is_active is False:
-            delete_faq_knowledge(faq.id, settings=cfg)
-            continue
-        total += index_faq(faq, settings=cfg)
-    return total
+    chunks = [
+        chunk
+        for faq in rows
+        if getattr(faq, "is_active", True) is not False
+        for chunk in _faq_chunks(faq)
+    ]
 
-
-async def _load_faqs(session: AsyncSession) -> list[Any]:
-    try:
-        from sqlalchemy import select
-
-        from app.models.faq import Faq  # type: ignore[attr-defined]
-    except ImportError:
-        logger.info("FAQ model not available yet; skipping FAQ reindex")
-        return []
-
-    result = await session.execute(select(Faq))
-    return list(result.scalars().all())
+    client = get_weaviate_client(cfg)
+    ensure_knowledge_collection(client, cfg)
+    delete_knowledge_by_source_type(
+        source_type=KnowledgeSourceType.FAQ,
+        client=client,
+        settings=cfg,
+    )
+    return upsert_knowledge_objects(chunks, client=client, settings=cfg)

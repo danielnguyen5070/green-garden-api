@@ -1,0 +1,244 @@
+{
+  "items": [
+    {
+      "id": "caiMonQuality",
+      "category": "plants",
+      "category_label": "Seedlings",
+      "category_label_vi": "Cây giống",
+      "question": "Are Cai Mon (Ben Tre) seedlings good quality?",
+      "answer": "Cai Mon – Cho Lach in Ben Tre has a long history of seedling nurseries and is known for healthy, true-to-variety grafted plants. We source from nurseries we know there, mostly grafted plants, so they keep the parent tree's traits and fruit much sooner than seed-grown trees.",
+      "question_vi": "Cây giống Cái Mơn Bến Tre có tốt không?",
+      "answer_vi": "Cái Mơn – Chợ Lách (Bến Tre) là vùng gắn bó lâu đời với nghề ươm cây giống, nổi tiếng với cây ghép khỏe và đúng giống. Ngọc Ngân chọn cây từ những nhà vườn quen tại đây, chủ yếu là cây ghép nên giữ đặc tính cây mẹ và cho trái sớm hơn nhiều so với cây trồng từ hạt."
+    },
+    {
+      "id": "whereToBuy",
+      "category": "orders",
+      "category_label": "Orders",
+      "category_label_vi": "Đơn hàng",
+      "question": "Where can I buy Cai Mon seedlings from a trustworthy seller?",
+      "answer": "You can buy from Ngoc Ngan Ben Tre — we pick plants directly from nurseries we know in Cai Mon – Cho Lach. Order on this website or message us on Zalo at 0386569374, and pay when the plants arrive. If you live nearby, you can also visit the nursery to choose in person; just message us first so we can get plants ready.",
+      "question_vi": "Mua cây giống Cái Mơn ở đâu uy tín?",
+      "answer_vi": "Bạn có thể mua tại Ngọc Ngân Bến Tre — cây được chọn trực tiếp từ nhà vườn quen ở Cái Mơn – Chợ Lách. Đặt online trên website hoặc nhắn Zalo 0386569374, nhận cây rồi mới thanh toán. Nếu ở gần, bạn có thể ghé nhà vườn xem và chọn cây, nhớ nhắn trước để shop chuẩn bị."
+    },
+    {
+      "id": "fruiting",
+      "category": "care",
+      "category_label": "Planting & Care",
+      "category_label_vi": "Trồng & chăm sóc",
+      "question": "How long do Cai Mon seedlings take to bear fruit?",
+      "answer": "It depends on the variety and how it is cared for. Grafted trees usually fruit within one to two years, much sooner than seed-grown trees. Message us on Zalo for the timeline of a specific variety.",
+      "question_vi": "Cây giống Cái Mơn trồng bao lâu thì có trái?",
+      "answer_vi": "Tùy giống và cách chăm. Cây ghép thường cho trái sau 1–2 năm, sớm hơn nhiều so với cây trồng từ hạt. Bạn có thể nhắn Zalo để shop tư vấn thời gian cụ thể cho từng giống."
+    },
+    {
+      "id": "nationwide",
+      "category": "delivery",
+      "category_label": "Delivery",
+      "category_label_vi": "Giao hàng",
+      "question": "Do you ship Cai Mon seedlings to other provinces?",
+      "answer": "Yes. We ship seedlings to every province in Vietnam, from the Mekong Delta to Hanoi and the North, through Vietnam Post and J&T Express. Just give us a full address including house number, street, ward, and province.",
+      "question_vi": "Cây giống Cái Mơn có giao đi tỉnh không?",
+      "answer_vi": "Có. Shop ship cây giống đi khắp các tỉnh thành, từ miền Tây đến Hà Nội và các tỉnh miền Bắc, qua Bưu điện và J&T Express. Bạn chỉ cần nhập địa chỉ đầy đủ gồm số nhà, đường, xã/phường và tỉnh/thành."
+    },
+    {
+      "id": "afterDelivery",
+      "category": "care",
+      "category_label": "Planting & Care",
+      "category_label_vi": "Trồng & chăm sóc",
+      "question": "What should I do first when my seedlings arrive?",
+      "answer": "Unbox it right away, remove the ties, place it somewhere shaded with gentle sun, and water the root ball. Let the plant rest for 3–5 days to adjust before planting it out or repotting.",
+      "question_vi": "Nhận cây giống về thì nên làm gì đầu tiên?",
+      "answer_vi": "Mở thùng ngay, tháo dây buộc, đặt cây nơi mát có nắng nhẹ và tưới ẩm bầu đất. Để cây nghỉ 3–5 ngày cho quen khí hậu rồi hãy trồng xuống đất hoặc sang chậu."
+    },
+    {
+      "id": "placeOrder",
+      "category": "orders",
+      "category_label": "Orders",
+      "category_label_vi": "Đơn hàng",
+      "question": "How do I order seedlings on the website?",
+      "answer": "Pick a plant on the homepage, choose a size if options are offered, add it to your cart, and go to checkout. All we need is your phone number, name, and delivery address. You can also order directly through Zalo at 0386569374.",
+      "question_vi": "Đặt mua cây giống online trên website như thế nào?",
+      "answer_vi": "Chọn cây trên trang chủ, chọn cỡ cây nếu có, thêm vào giỏ rồi bấm Thanh toán. Bạn chỉ cần điền số điện thoại, họ tên và địa chỉ nhận hàng. Nếu muốn, bạn cũng có thể đặt trực tiếp qua Zalo 0386569374."
+    },
+    {
+      "id": "noAccount",
+      "category": "orders",
+      "category_label": "Orders",
+      "category_label_vi": "Đơn hàng",
+      "question": "Do I need to sign up to buy plants?",
+      "answer": "No. You can order without signing up — just your phone number, name, and address so we can confirm the order and deliver your plants.",
+      "question_vi": "Mua cây có cần đăng ký tài khoản không?",
+      "answer_vi": "Không cần. Bạn đặt hàng ngay mà không phải đăng ký, chỉ cần số điện thoại, họ tên và địa chỉ để shop liên hệ và giao cây."
+    },
+    {
+      "id": "orderConfirmation",
+      "category": "orders",
+      "category_label": "Orders",
+      "category_label_vi": "Đơn hàng",
+      "question": "After I order, how do I know the shop received it?",
+      "answer": "You will see your order number on the confirmation screen right after checkout. We then call or message you on Zalo to confirm the varieties, quantity, and address before shipping.",
+      "question_vi": "Đặt hàng xong thì làm sao biết shop đã nhận đơn?",
+      "answer_vi": "Sau khi đặt, bạn sẽ thấy mã đơn hàng ngay trên màn hình xác nhận. Shop sẽ gọi hoặc nhắn Zalo theo số điện thoại bạn để lại để xác nhận giống cây, số lượng và địa chỉ trước khi gửi hàng."
+    },
+    {
+      "id": "changeOrder",
+      "category": "orders",
+      "category_label": "Orders",
+      "category_label_vi": "Đơn hàng",
+      "question": "Can I edit or cancel an order after placing it?",
+      "answer": "Yes, as long as the order has not been packed and shipped. Message us on Zalo at 0386569374 with your order number as soon as possible and we will update it.",
+      "question_vi": "Đặt rồi có sửa hoặc hủy đơn được không?",
+      "answer_vi": "Được, nếu đơn chưa được đóng gói gửi đi. Hãy nhắn Zalo 0386569374 kèm mã đơn hàng càng sớm càng tốt, shop sẽ cập nhật giúp bạn."
+    },
+    {
+      "id": "multiplePlants",
+      "category": "orders",
+      "category_label": "Orders",
+      "category_label_vi": "Đơn hàng",
+      "question": "Do I save on shipping if I buy several plants at once?",
+      "answer": "Yes. Add as many plants as you like and check out in a single order, so shipping is charged only once. Orders above 500,000₫ also ship free.",
+      "question_vi": "Mua nhiều cây một lúc có tiết kiệm phí ship không?",
+      "answer_vi": "Có. Bạn thêm bao nhiêu cây tùy ý vào giỏ và thanh toán trong một đơn, chỉ tính phí vận chuyển một lần. Đơn trên 500.000₫ còn được miễn phí vận chuyển."
+    },
+    {
+      "id": "deliveryTime",
+      "category": "delivery",
+      "category_label": "Delivery",
+      "category_label_vi": "Giao hàng",
+      "question": "How long does it take to receive seedlings ordered online?",
+      "answer": "Plants ship with Vietnam Post or J&T Express and usually arrive within 3–5 business days. Northern provinces and remote areas may take one or two days longer.",
+      "question_vi": "Đặt cây giống online bao lâu thì nhận được?",
+      "answer_vi": "Cây được gửi qua Bưu điện hoặc J&T Express, thường nhận sau 3–5 ngày làm việc. Khu vực miền Bắc hoặc vùng xa có thể lâu hơn 1–2 ngày."
+    },
+    {
+      "id": "shippingCost",
+      "category": "delivery",
+      "category_label": "Delivery",
+      "category_label_vi": "Giao hàng",
+      "question": "How much does shipping cost, and is it ever free?",
+      "answer": "Orders above 500,000₫ ship free. Otherwise there is a flat 50,000₫ fee, shown in the order summary before you place the order.",
+      "question_vi": "Phí ship cây giống bao nhiêu, có được miễn phí không?",
+      "answer_vi": "Đơn trên 500.000₫ được miễn phí vận chuyển. Các đơn còn lại có phí cố định 50.000₫, hiển thị rõ ở phần Tóm tắt đơn hàng trước khi bạn đặt."
+    },
+    {
+      "id": "packaging",
+      "category": "delivery",
+      "category_label": "Delivery",
+      "category_label_vi": "Giao hàng",
+      "question": "Will the plants wilt or get damaged on a long trip?",
+      "answer": "Plants are packed for long journeys: the root ball is wrapped to hold moisture and keep the soil intact, the branches are tied, and everything travels in a ventilated box. This keeps the plant healthy through 3–5 days in transit.",
+      "question_vi": "Gửi cây đi xa có bị héo hay hư không?",
+      "answer_vi": "Cây được đóng gói để chịu được đường xa: bầu đất bọc kín để giữ ẩm và không bị vỡ, cành lá buộc gọn, cả cây đặt trong thùng có lỗ thoáng. Nhờ vậy cây vẫn khỏe sau 3–5 ngày vận chuyển."
+    },
+    {
+      "id": "trackOrder",
+      "category": "delivery",
+      "category_label": "Delivery",
+      "category_label_vi": "Giao hàng",
+      "question": "How can I see where my plant delivery is?",
+      "answer": "Once your order ships we send the tracking number on Zalo so you can follow it on the Vietnam Post or J&T Express website.",
+      "question_vi": "Làm sao biết đơn cây đang giao tới đâu?",
+      "answer_vi": "Khi gửi hàng, shop sẽ nhắn mã vận đơn qua Zalo để bạn tra cứu trên website của Bưu điện hoặc J&T Express."
+    },
+    {
+      "id": "watering",
+      "category": "care",
+      "category_label": "Planting & Care",
+      "category_label_vi": "Trồng & chăm sóc",
+      "question": "How often should I water a newly planted seedling?",
+      "answer": "Water when the top of the root ball feels dry — usually once a day in the early morning or late afternoon, and less in the rainy season. Good drainage matters most: young plants are far more likely to die from waterlogging than from thirst.",
+      "question_vi": "Cây giống mới trồng nên tưới nước mấy lần một ngày?",
+      "answer_vi": "Tưới khi mặt bầu se khô, thường 1 lần mỗi ngày vào sáng sớm hoặc chiều mát, mùa mưa thì thưa hơn. Quan trọng nhất là đất thoát nước tốt, vì cây giống chết vì úng nhiều hơn vì thiếu nước."
+    },
+    {
+      "id": "planting",
+      "category": "care",
+      "category_label": "Planting & Care",
+      "category_label_vi": "Trồng & chăm sóc",
+      "question": "Should fruit trees go in the ground or in a pot?",
+      "answer": "Fruit trees do best planted in the ground, but a large, well-draining pot works too. Mix the soil with well-rotted compost and choose a spot that gets at least 5–6 hours of sun a day.",
+      "question_vi": "Cây ăn trái nên trồng xuống đất hay trồng chậu?",
+      "answer_vi": "Cây ăn trái phát triển tốt nhất khi trồng xuống đất, nhưng vẫn trồng chậu được nếu chậu đủ lớn và thoát nước tốt. Trộn đất với phân hữu cơ hoai mục, trồng nơi có nắng ít nhất 5–6 giờ mỗi ngày."
+    },
+    {
+      "id": "losingLeaves",
+      "category": "care",
+      "category_label": "Planting & Care",
+      "category_label_vi": "Trồng & chăm sóc",
+      "question": "My new seedling is dropping leaves — is that normal?",
+      "answer": "Yes, some leaf drop after transit is expected, and new shoots usually appear within one or two weeks as the roots settle. Keep the soil evenly moist, shade the plant from harsh sun, and hold off on fertiliser. If the plant wilts fast or the stem darkens, send us photos on Zalo.",
+      "question_vi": "Cây giống mới nhận bị rụng lá có sao không?",
+      "answer_vi": "Rụng bớt lá sau vận chuyển là bình thường, cây sẽ ra đọt mới sau 1–2 tuần khi đã bén rễ. Hãy giữ ẩm vừa phải, che nắng gắt và chưa bón phân ngay. Nếu cây héo nhanh hoặc thân thâm đen, hãy nhắn Zalo kèm ảnh để shop hỗ trợ."
+    },
+    {
+      "id": "graftedSeedlings",
+      "category": "plants",
+      "category_label": "Seedlings",
+      "category_label_vi": "Cây giống",
+      "question": "Will seedlings bought online be the right variety?",
+      "answer": "Yes. We source from nurseries we know in Cai Mon – Cho Lach, mostly grafted plants, so they keep the parent tree's fruit quality, yield, and time to harvest.",
+      "question_vi": "Mua cây giống online có đúng giống không?",
+      "answer_vi": "Có. Cây được chọn từ nhà vườn quen tại Cái Mơn – Chợ Lách, chủ yếu là cây ghép nên giữ đúng đặc tính của cây mẹ về trái, năng suất và thời gian cho trái."
+    },
+    {
+      "id": "plantSize",
+      "category": "plants",
+      "category_label": "Seedlings",
+      "category_label_vi": "Cây giống",
+      "question": "How tall are the seedlings when they ship?",
+      "answer": "It varies by variety, but most seedlings are around 40–80cm tall when they ship. Exact height and details are listed in each plant's description.",
+      "question_vi": "Cây giống gửi đi cao khoảng bao nhiêu?",
+      "answer_vi": "Tùy giống, phần lớn cây giống cao khoảng 40–80cm khi gửi đi. Chiều cao và đặc điểm cụ thể được ghi trong phần mô tả của từng cây."
+    },
+    {
+      "id": "potSize",
+      "category": "plants",
+      "category_label": "Seedlings",
+      "category_label_vi": "Cây giống",
+      "question": "Can I choose a bigger or smaller plant?",
+      "answer": "Yes. Where size options are offered, you can choose one on the product page before adding the plant to your cart. The price updates to match the size you pick.",
+      "question_vi": "Có chọn được cây lớn hay cây nhỏ không?",
+      "answer_vi": "Có. Với những cây có nhiều lựa chọn, bạn chọn cỡ ngay trên trang sản phẩm trước khi thêm vào giỏ. Giá hiển thị theo đúng cỡ bạn chọn."
+    },
+    {
+      "id": "plantsWithPots",
+      "category": "plants",
+      "category_label": "Seedlings",
+      "category_label_vi": "Cây giống",
+      "question": "Do the seedlings come with a pot?",
+      "answer": "Seedlings ship in their nursery root ball rather than a decorative pot, which keeps them light and safe in transit. You can plant them straight into the ground or pot them up yourself.",
+      "question_vi": "Cây giống có kèm chậu không?",
+      "answer_vi": "Cây giống được gửi nguyên bầu đất, không kèm chậu trang trí, để nhẹ và an toàn khi vận chuyển. Bạn có thể trồng thẳng xuống đất hoặc sang chậu tùy ý."
+    },
+    {
+      "id": "returnPolicy",
+      "category": "returns",
+      "category_label": "Returns",
+      "category_label_vi": "Đổi trả",
+      "question": "Can I return or exchange seedlings?",
+      "answer": "Because plants are living products, we cannot take back healthy plants. If something is wrong with your order, message us on Zalo within 48 hours of delivery and we will sort it out.",
+      "question_vi": "Mua cây giống có được đổi trả không?",
+      "answer_vi": "Vì cây là sản phẩm sống nên shop không nhận trả hàng khi cây vẫn khỏe. Nếu đơn hàng có vấn đề, hãy nhắn Zalo trong vòng 48 giờ kể từ khi nhận cây để shop hỗ trợ."
+    },
+    {
+      "id": "damagedPlant",
+      "category": "returns",
+      "category_label": "Returns",
+      "category_label_vi": "Đổi trả",
+      "question": "What if my plant arrives broken, bruised, or wilted?",
+      "answer": "Photograph the plant and the box as soon as you open it and send the photos on Zalo within 48 hours. If the damage happened in transit, we will send a replacement or refund that plant.",
+      "question_vi": "Cây giao tới bị gãy, dập hoặc héo thì xử lý sao?",
+      "answer_vi": "Hãy chụp ảnh cây và thùng hàng ngay khi mở, gửi qua Zalo trong vòng 48 giờ. Nếu cây hư hỏng do vận chuyển, shop sẽ gửi cây thay thế hoặc hoàn tiền phần cây đó."
+    },
+    {
+      "id": "exchangePlant",
+      "category": "returns",
+      "category_label": "Returns",
+      "category_label_vi": "Đổi trả",
+      "question": "Can I switch to a different variety after ordering?",
+      "answer": "We can swap varieties while the order is still with us. After delivery it depends on the condition of the plant and what is in stock — message us on Zalo and we will check.",
+      "question_vi": "Đặt rồi muốn đổi sang giống cây khác được không?",
+      "answer_vi": "Shop có thể đổi giống nếu đơn chưa gửi đi. Khi cây đã giao, việc đổi sẽ tùy tình trạng cây và giống còn hàng — hãy nhắn Zalo để shop kiểm tra giúp bạn."
+    }
+  ]
+}

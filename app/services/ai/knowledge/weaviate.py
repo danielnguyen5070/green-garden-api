@@ -324,6 +324,26 @@ def delete_knowledge_by_source(
     )
 
 
+def delete_knowledge_by_source_type(
+    *,
+    source_type: KnowledgeSourceType | str,
+    client: weaviate.WeaviateClient | None = None,
+    settings: Settings | None = None,
+) -> None:
+    """Delete every `NgocNganKnowledge` object of one source type."""
+    from weaviate.classes.query import Filter
+
+    cfg = settings or get_settings()
+    weaviate_client = client or get_weaviate_client(cfg)
+    if not weaviate_client.collections.exists(COLLECTION_NAME):
+        return
+
+    collection = weaviate_client.collections.get(COLLECTION_NAME)
+    collection.data.delete_many(
+        where=Filter.by_property("source_type").equal(str(source_type))
+    )
+
+
 def delete_plant_knowledge_by_source(
     *,
     source_id: uuid.UUID | str,
