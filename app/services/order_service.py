@@ -38,6 +38,7 @@ from app.models.plant_pot_size import PlantPotSize
 from app.services.customer_service import resolve_customer_for_order
 from app.services.notification_service import queue_new_order_notification
 from app.services.plant_service import PlantNotFoundError
+from app.services.storefront_notify import notify_storefront
 
 _ORDER_NUMBER_PREFIX = "GG"
 # Shared advisory lock key so concurrent checkouts allocate order numbers
@@ -510,6 +511,8 @@ async def create_order(
 
         for plant_id, quantity in requested.items():
             plants[plant_id].stock -= quantity
+        # Read before commit: attributes expire afterwards.
+        ordered_slugs = [plants[plant_id].slug for plant_id in requested]
 
         if source is OrderSource.STOREFRONT:
             queue_new_order_notification(
@@ -523,6 +526,7 @@ async def create_order(
     except Exception:
         await session.rollback()
         raise
+    notify_storefront("plants", ordered_slugs)
     return await get_order(session, order.id)
 
 
@@ -539,25 +543,30 @@ def _ensure_transition_allowed(current: OrderStatus, target: OrderStatus) -> Non
         )
 
 
-async def _restore_stock(session: AsyncSession, order: Order) -> None:
+async def _restore_stock(session: AsyncSession, order: Order) -> list[str]:
     """
     Give the ordered quantities back to the plants.
 
     Stock is deducted once when the order is created and only ever returned on
     the transition into `cancelled`. Because `cancelled` is terminal and
     re-sending the same status is a no-op, an order can never be restocked twice.
+
+    Returns the slugs of the restocked plants.
     """
     quantities: dict[uuid.UUID, int] = defaultdict(int)
     for item in order.items:
         quantities[item.plant_id] += item.quantity
     if not quantities:
-        return
+        return []
 
     plants = await _lock_plants(session, set(quantities))
+    slugs: list[str] = []
     for plant_id, quantity in quantities.items():
         plant = plants.get(plant_id)
         if plant is not None:
             plant.stock += quantity
+            slugs.append(plant.slug)
+    return slugs
 
 
 async def update_order_status(
@@ -574,14 +583,17 @@ async def update_order_status(
 
     _ensure_transition_allowed(order.status, status)
 
+    restocked_slugs: list[str] = []
     try:
         # Restock and the status change commit together, so a cancelled order can
         # never be left with the stock still deducted.
         if status is OrderStatus.CANCELLED:
-            await _restore_stock(session, order)
+            restocked_slugs = await _restore_stock(session, order)
         order.status = status
         await session.commit()
     except Exception:
         await session.rollback()
         raise
+    if restocked_slugs:
+        notify_storefront("plants", restocked_slugs)
     return await get_order(session, order.id)

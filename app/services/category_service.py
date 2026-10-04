@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
 from app.models.category import Category
+from app.services.storefront_notify import notify_storefront
 
 
 class CategoryNotFoundError(Exception):
@@ -120,6 +121,7 @@ async def create_category(
     except Exception:
         await session.rollback()
         raise
+    notify_storefront("categories")
     return await get_category(session, category.id)
 
 
@@ -168,6 +170,7 @@ async def update_category(
     except Exception:
         await session.rollback()
         raise
+    notify_storefront("categories")
     return await get_category(session, category.id)
 
 
@@ -184,4 +187,5 @@ async def set_category_status(
     except Exception:
         await session.rollback()
         raise
+    notify_storefront("categories")
     return await get_category(session, category.id)

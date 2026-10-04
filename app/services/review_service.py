@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.plant import Plant
 from app.models.review import Review, ReviewStatus
+from app.services.storefront_notify import notify_storefront
 
 ReviewScope = Literal["shop", "plant"]
 """`shop` = website-wide reviews (no plant); `plant` = reviews of any plant."""
@@ -172,4 +173,6 @@ async def set_review_status(
     except Exception:
         await session.rollback()
         raise
-    return await get_review(session, review.id)
+    review = await get_review(session, review.id)
+    notify_storefront("reviews", [review.plant.slug if review.plant else None])
+    return review

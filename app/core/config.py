@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_timeout_seconds: float = 60.0
 
+    # Next.js storefront cache webhook; disabled unless both are set.
+    storefront_revalidate_url: str | None = None
+    storefront_revalidate_secret: str | None = None
+
     @field_validator("auth_cookie_domain", mode="before")
     @classmethod
     def _normalize_auth_cookie_domain(cls, value: object) -> str | None:
@@ -72,6 +76,8 @@ class Settings(BaseSettings):
         "weaviate_api_key",
         "openai_api_key",
         "deepseek_api_key",
+        "storefront_revalidate_url",
+        "storefront_revalidate_secret",
         mode="before",
     )
     @classmethod

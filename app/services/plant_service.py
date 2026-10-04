@@ -25,6 +25,7 @@ from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
 from app.models.plant_slug_history import PlantSlugHistory
 from app.services.ai.knowledge.plant_indexer import sync_plant_knowledge_safe
+from app.services.storefront_notify import notify_storefront
 from app.services.category_service import CategoryNotFoundError, get_category
 
 SortField = Literal["created_at", "name", "price", "stock"]
@@ -350,6 +351,7 @@ async def create_plant(
         raise
     plant = await get_plant(session, plant.id)
     sync_plant_knowledge_safe(plant)
+    notify_storefront("plants", [plant.slug])
     return plant
 
 
@@ -401,6 +403,7 @@ async def update_plant(
     beginner_friendly_provided: bool = False,
 ) -> Plant:
     plant = await get_plant(session, plant_id)
+    previous_slug = plant.slug
 
     if category_id is not None and category_id != plant.category_id:
         await get_category(session, category_id)
@@ -468,6 +471,7 @@ async def update_plant(
         raise
     plant = await get_plant(session, plant.id)
     sync_plant_knowledge_safe(plant)
+    notify_storefront("plants", [plant.slug, previous_slug])
     return plant
 
 
@@ -486,6 +490,7 @@ async def set_plant_status(
         raise
     plant = await get_plant(session, plant.id)
     sync_plant_knowledge_safe(plant)
+    notify_storefront("plants", [plant.slug])
     return plant
 
 
@@ -549,6 +554,7 @@ async def add_plant_image(
     except Exception:
         await session.rollback()
         raise
+    notify_storefront("plants")
     await session.refresh(image)
     return image
 
@@ -580,6 +586,7 @@ async def update_plant_image(
     except Exception:
         await session.rollback()
         raise
+    notify_storefront("plants")
     await session.refresh(image)
     return image
 
@@ -596,6 +603,7 @@ async def delete_plant_image(
     except Exception:
         await session.rollback()
         raise
+    notify_storefront("plants")
 
 
 async def list_plant_pot_sizes(
@@ -654,6 +662,7 @@ async def add_plant_pot_size(
     except Exception:
         await session.rollback()
         raise
+    notify_storefront("plants")
     await session.refresh(pot_size)
     return pot_size
 
@@ -688,6 +697,7 @@ async def update_plant_pot_size(
     except Exception:
         await session.rollback()
         raise
+    notify_storefront("plants")
     await session.refresh(pot_size)
     return pot_size
 
@@ -704,3 +714,4 @@ async def delete_plant_pot_size(
     except Exception:
         await session.rollback()
         raise
+    notify_storefront("plants")
