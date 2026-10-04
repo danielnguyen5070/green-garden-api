@@ -84,6 +84,7 @@ from app.schemas.review import (
     ReviewCreate,
     ReviewListItem,
     ReviewListResponse,
+    ReviewPlantSummary,
     ReviewResponse,
     ReviewStatusUpdate,
 )
@@ -156,6 +157,7 @@ __all__ = [
     "ReviewCreate",
     "ReviewListItem",
     "ReviewListResponse",
+    "ReviewPlantSummary",
     "ReviewResponse",
     "ReviewStatusUpdate",
     "SalesOverview",

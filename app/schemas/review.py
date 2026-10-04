@@ -15,6 +15,7 @@ __all__ = [
     "ReviewCreate",
     "ReviewListItem",
     "ReviewListResponse",
+    "ReviewPlantSummary",
     "ReviewResponse",
     "ReviewStatusUpdate",
 ]
@@ -48,12 +49,25 @@ class ReviewStatusUpdate(BaseModel):
     status: ReviewStatus
 
 
-class ReviewResponse(BaseModel):
-    """Full review row for the admin panel."""
+class ReviewPlantSummary(BaseModel):
+    """The plant a review is about, for the admin panel."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    name: str
+    name_vi: str | None
+    slug: str
+
+
+class ReviewResponse(BaseModel):
+    """Full review row for the admin panel. `plant` is null for shop reviews."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    plant_id: UUID | None
+    plant: ReviewPlantSummary | None
     name: str
     rating: int
     content: str
@@ -86,7 +100,14 @@ class PublicReviewListItem(BaseModel):
 
 
 class PublicReviewListResponse(BaseModel):
+    """Approved reviews plus a summary over all approved reviews in scope."""
+
     items: list[PublicReviewListItem]
     page: int
     page_size: int
     total: int
+    average_rating: float = Field(description="Rounded to one decimal; 0 when empty")
+    total_reviews: int
+    rating_distribution: dict[int, int] = Field(
+        description="Approved review count per star, keyed 1-5"
+    )

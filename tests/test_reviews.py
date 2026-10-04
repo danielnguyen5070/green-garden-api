@@ -1,14 +1,18 @@
-"""Website-wide customer review API tests (run against TEST_DATABASE_URL)."""
+"""Shop and plant review API tests (run against TEST_DATABASE_URL)."""
 
 from __future__ import annotations
 
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin import Admin
+from app.models.category import Category
+from app.models.plant import Plant
 from app.models.review import Review, ReviewStatus
 
 
@@ -51,6 +55,30 @@ async def _seed_review(
     await session.commit()
     await session.refresh(review)
     return review
+
+
+async def _seed_plant(
+    session: AsyncSession,
+    category: Category,
+    **overrides: object,
+) -> Plant:
+    unique = uuid4().hex[:8]
+    values: dict = {
+        "category_id": category.id,
+        "name": f"Reviewed {unique}",
+        "name_vi": f"Cây {unique}",
+        "slug": f"reviewed-{unique}",
+        "price": Decimal("100000.00"),
+        "stock": 5,
+        "sku": f"REV-{unique}",
+        "is_active": True,
+    }
+    values.update(overrides)
+    plant = Plant(**values)
+    session.add(plant)
+    await session.commit()
+    await session.refresh(plant)
+    return plant
 
 
 # --------------------------------------------------------------------------
@@ -343,3 +371,244 @@ async def test_admin_status_update_rejects_invalid_status(
         json={"status": "published"},
     )
     assert response.status_code == 422
+
+
+# --------------------------------------------------------------------------
+# Plant reviews
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_public_submit_plant_review(
+    client: AsyncClient,
+    test_db_session: AsyncSession,
+    test_category: Category,
+) -> None:
+    plant = await _seed_plant(test_db_session, test_category)
+
+    response = await client.post(
+        f"{STOREFRONT_PREFIX}/plants/{plant.slug}/reviews",
+        json=_review_payload(),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "pending"
+    assert body["plant_id"] == str(plant.id)
+    assert body["plant"] == {
+        "id": str(plant.id),
+        "name": plant.name,
+        "name_vi": plant.name_vi,
+        "slug": plant.slug,
+    }
+
+
+@pytest.mark.asyncio
+async def test_public_shop_review_has_no_plant(client: AsyncClient) -> None:
+    response = await client.post(
+        f"{STOREFRONT_PREFIX}/reviews",
+        json=_review_payload(),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["plant_id"] is None
+    assert body["plant"] is None
+
+
+@pytest.mark.asyncio
+async def test_plant_reviews_404_for_unknown_or_inactive_plant(
+    client: AsyncClient,
+    test_db_session: AsyncSession,
+    test_category: Category,
+) -> None:
+    inactive = await _seed_plant(test_db_session, test_category, is_active=False)
+
+    for slug in (f"missing-{uuid4().hex[:8]}", inactive.slug):
+        listed = await client.get(f"{STOREFRONT_PREFIX}/plants/{slug}/reviews")
+        assert listed.status_code == 404
+        submitted = await client.post(
+            f"{STOREFRONT_PREFIX}/plants/{slug}/reviews",
+            json=_review_payload(),
+        )
+        assert submitted.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_public_plant_reviews_list_only_approved_with_summary(
+    client: AsyncClient,
+    test_db_session: AsyncSession,
+    test_category: Category,
+) -> None:
+    plant = await _seed_plant(test_db_session, test_category)
+    other = await _seed_plant(test_db_session, test_category)
+
+    five = await _seed_review(
+        test_db_session, plant_id=plant.id, rating=5, status=ReviewStatus.APPROVED
+    )
+    four = await _seed_review(
+        test_db_session, plant_id=plant.id, rating=4, status=ReviewStatus.APPROVED
+    )
+    another_five = await _seed_review(
+        test_db_session, plant_id=plant.id, rating=5, status=ReviewStatus.APPROVED
+    )
+    await _seed_review(
+        test_db_session, plant_id=plant.id, rating=1, status=ReviewStatus.PENDING
+    )
+    await _seed_review(
+        test_db_session, plant_id=plant.id, rating=1, status=ReviewStatus.REJECTED
+    )
+    await _seed_review(
+        test_db_session, plant_id=other.id, rating=2, status=ReviewStatus.APPROVED
+    )
+    await _seed_review(test_db_session, rating=3, status=ReviewStatus.APPROVED)
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/plants/{plant.slug}/reviews",
+        params={"page": 1, "page_size": 2},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 3
+    assert len(body["items"]) == 2
+    assert {item["id"] for item in body["items"]} <= {
+        str(five.id),
+        str(four.id),
+        str(another_five.id),
+    }
+    assert body["total_reviews"] == 3
+    assert body["average_rating"] == pytest.approx(4.7)
+    assert body["rating_distribution"] == {"1": 0, "2": 0, "3": 0, "4": 1, "5": 2}
+
+
+@pytest.mark.asyncio
+async def test_public_plant_reviews_empty_summary(
+    client: AsyncClient,
+    test_db_session: AsyncSession,
+    test_category: Category,
+) -> None:
+    plant = await _seed_plant(test_db_session, test_category)
+
+    response = await client.get(f"{STOREFRONT_PREFIX}/plants/{plant.slug}/reviews")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["items"] == []
+    assert body["total"] == 0
+    assert body["total_reviews"] == 0
+    assert body["average_rating"] == 0
+    assert body["rating_distribution"] == {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
+
+
+@pytest.mark.asyncio
+async def test_public_shop_list_excludes_plant_reviews(
+    client: AsyncClient,
+    test_db_session: AsyncSession,
+    test_category: Category,
+) -> None:
+    plant = await _seed_plant(test_db_session, test_category)
+    plant_review = await _seed_review(
+        test_db_session, plant_id=plant.id, status=ReviewStatus.APPROVED
+    )
+    shop_review = await _seed_review(test_db_session, status=ReviewStatus.APPROVED)
+
+    response = await client.get(
+        f"{STOREFRONT_PREFIX}/reviews", params={"page_size": 100}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    ids = [item["id"] for item in body["items"]]
+    assert str(shop_review.id) in ids
+    assert str(plant_review.id) not in ids
+    assert body["total_reviews"] == body["total"]
+    assert sum(body["rating_distribution"].values()) == body["total_reviews"]
+
+
+@pytest.mark.asyncio
+async def test_admin_filter_by_scope_and_plant(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_db_session: AsyncSession,
+    test_category: Category,
+) -> None:
+    marker = uuid4().hex[:8]
+    plant = await _seed_plant(test_db_session, test_category)
+    other = await _seed_plant(test_db_session, test_category)
+    plant_review = await _seed_review(
+        test_db_session, name=f"Plant {marker}", plant_id=plant.id
+    )
+    other_review = await _seed_review(
+        test_db_session, name=f"Other {marker}", plant_id=other.id
+    )
+    shop_review = await _seed_review(test_db_session, name=f"Shop {marker}")
+
+    await _login(client, active_admin)
+
+    async def ids_for(**params: str) -> set[str]:
+        response = await client.get(
+            REVIEWS_PREFIX, params={"search": marker, **params}
+        )
+        assert response.status_code == 200
+        return {item["id"] for item in response.json()["items"]}
+
+    assert await ids_for() == {
+        str(plant_review.id),
+        str(other_review.id),
+        str(shop_review.id),
+    }
+    assert await ids_for(scope="shop") == {str(shop_review.id)}
+    assert await ids_for(scope="plant") == {
+        str(plant_review.id),
+        str(other_review.id),
+    }
+    assert await ids_for(plant_id=str(plant.id)) == {str(plant_review.id)}
+
+    listed = await client.get(
+        REVIEWS_PREFIX, params={"search": marker, "plant_id": str(plant.id)}
+    )
+    item = listed.json()["items"][0]
+    assert item["plant"]["slug"] == plant.slug
+    assert item["plant"]["name"] == plant.name
+
+    invalid = await client.get(REVIEWS_PREFIX, params={"scope": "everything"})
+    assert invalid.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_admin_approve_plant_review_makes_it_public(
+    client: AsyncClient,
+    active_admin: Admin,
+    test_db_session: AsyncSession,
+    test_category: Category,
+) -> None:
+    plant = await _seed_plant(test_db_session, test_category)
+    review = await _seed_review(test_db_session, plant_id=plant.id)
+    url = f"{STOREFRONT_PREFIX}/plants/{plant.slug}/reviews"
+
+    assert (await client.get(url)).json()["total"] == 0
+
+    await _login(client, active_admin)
+    patched = await client.patch(
+        f"{REVIEWS_PREFIX}/{review.id}/status",
+        json={"status": "approved"},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["plant"]["id"] == str(plant.id)
+    client.cookies.clear()
+
+    body = (await client.get(url)).json()
+    assert [item["id"] for item in body["items"]] == [str(review.id)]
+
+
+@pytest.mark.asyncio
+async def test_plant_reviews_deleted_with_plant(
+    test_db_session: AsyncSession,
+    test_category: Category,
+) -> None:
+    plant = await _seed_plant(test_db_session, test_category)
+    review = await _seed_review(test_db_session, plant_id=plant.id)
+
+    await test_db_session.execute(delete(Plant).where(Plant.id == plant.id))
+    await test_db_session.commit()
+
+    remaining = await test_db_session.execute(
+        select(Review.id).where(Review.id == review.id)
+    )
+    assert remaining.scalar_one_or_none() is None

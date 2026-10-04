@@ -72,9 +72,18 @@ from app.services.plant_service import (
     list_plants,
     search_plants,
 )
-from app.services.review_service import create_review, list_reviews
+from app.services.review_service import (
+    ReviewScope,
+    create_review,
+    get_review_summary,
+    list_reviews,
+)
 
 router = APIRouter(prefix="/storefront", tags=["storefront"])
+
+_PLANT_NOT_FOUND = {
+    status.HTTP_404_NOT_FOUND: {"description": "Plant not found or inactive"}
+}
 
 
 def _sorted_images(plant: Plant) -> list[PlantImage]:
@@ -123,6 +132,44 @@ def _public_list_item(plant: Plant) -> PublicPlantListItem:
     )
 
 
+async def _public_review_page(
+    db: AsyncSession,
+    *,
+    page: int,
+    page_size: int,
+    plant_id: UUID | None = None,
+    scope: ReviewScope | None = None,
+) -> PublicReviewListResponse:
+    items, total = await list_reviews(
+        db,
+        page=page,
+        page_size=page_size,
+        status=ReviewStatus.APPROVED,
+        plant_id=plant_id,
+        scope=scope,
+    )
+    summary = await get_review_summary(db, plant_id=plant_id, scope=scope)
+    return PublicReviewListResponse(
+        items=[PublicReviewListItem.model_validate(item) for item in items],
+        page=page,
+        page_size=page_size,
+        total=total,
+        average_rating=summary.average_rating,
+        total_reviews=summary.total_reviews,
+        rating_distribution=summary.rating_distribution,
+    )
+
+
+async def _active_plant_or_404(db: AsyncSession, slug: str) -> Plant:
+    try:
+        return await get_plant_by_slug(db, normalize_slug(slug), active_only=True)
+    except PlantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
 @router.get(
     "/categories",
     response_model=PublicCategoryListResponse,
@@ -158,8 +205,10 @@ async def get_public_categories(
     response_model=PublicReviewListResponse,
     summary="List approved reviews (public)",
     description=(
-        "Paginated website-wide customer reviews. Only `approved` reviews are "
-        "returned. Ordered by `created_at` descending."
+        "Paginated website-wide customer reviews (plant reviews are excluded). "
+        "Only `approved` reviews are returned, ordered by `created_at` "
+        "descending, with the average rating and star distribution of all "
+        "approved shop reviews."
     ),
 )
 async def get_public_reviews(
@@ -167,17 +216,8 @@ async def get_public_reviews(
     page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ) -> PublicReviewListResponse:
-    items, total = await list_reviews(
-        db,
-        page=page,
-        page_size=page_size,
-        status=ReviewStatus.APPROVED,
-    )
-    return PublicReviewListResponse(
-        items=[PublicReviewListItem.model_validate(item) for item in items],
-        page=page,
-        page_size=page_size,
-        total=total,
+    return await _public_review_page(
+        db, page=page, page_size=page_size, scope="shop"
     )
 
 
@@ -201,6 +241,57 @@ async def post_public_review(
         name=payload.name,
         rating=payload.rating,
         content=payload.content,
+    )
+    return ReviewResponse.model_validate(review)
+
+
+@router.get(
+    "/plants/{slug}/reviews",
+    response_model=PublicReviewListResponse,
+    summary="List approved reviews of a plant (public)",
+    description=(
+        "Paginated approved reviews of one active plant, ordered by "
+        "`created_at` descending, with the plant's average rating and star "
+        "distribution. Old slugs resolve to the plant like the detail endpoint."
+    ),
+    responses=_PLANT_NOT_FOUND,
+)
+async def get_public_plant_reviews(
+    slug: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> PublicReviewListResponse:
+    plant = await _active_plant_or_404(db, slug)
+    return await _public_review_page(
+        db, page=page, page_size=page_size, plant_id=plant.id
+    )
+
+
+@router.post(
+    "/plants/{slug}/reviews",
+    response_model=ReviewResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit a review of a plant (public)",
+    description=(
+        "Submit a review of one active plant without authentication. The "
+        "review is stored as `pending` and does not appear publicly until an "
+        "admin approves it."
+    ),
+    responses=_PLANT_NOT_FOUND,
+)
+async def post_public_plant_review(
+    slug: str,
+    payload: ReviewCreate,
+    db: AsyncSession = Depends(get_db),
+) -> ReviewResponse:
+    plant = await _active_plant_or_404(db, slug)
+    review = await create_review(
+        db,
+        name=payload.name,
+        rating=payload.rating,
+        content=payload.content,
+        plant_id=plant.id,
     )
     return ReviewResponse.model_validate(review)
 

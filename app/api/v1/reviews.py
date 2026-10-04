@@ -18,6 +18,7 @@ from app.schemas.review import (
 )
 from app.services.review_service import (
     ReviewNotFoundError,
+    ReviewScope,
     get_review,
     list_reviews,
     set_review_status,
@@ -39,8 +40,10 @@ _NOT_FOUND = {status.HTTP_404_NOT_FOUND: {"description": "Review not found"}}
     summary="List reviews",
     description=(
         "Paginated review moderation list. Filter by `status` "
-        "(`pending` / `approved` / `rejected`) or search name/content. "
-        "Ordered by `created_at` descending."
+        "(`pending` / `approved` / `rejected`), by `scope` (`shop` for "
+        "website-wide reviews, `plant` for reviews of any plant), by "
+        "`plant_id`, or search name/content. Ordered by `created_at` "
+        "descending."
     ),
 )
 async def get_reviews(
@@ -51,6 +54,8 @@ async def get_reviews(
         description="Match reviewer name or content",
     ),
     status_filter: ReviewStatus | None = Query(default=None, alias="status"),
+    scope: ReviewScope | None = Query(default=None),
+    plant_id: UUID | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> ReviewListResponse:
     items, total = await list_reviews(
@@ -59,6 +64,9 @@ async def get_reviews(
         page_size=page_size,
         search=search,
         status=status_filter,
+        scope=scope,
+        plant_id=plant_id,
+        with_plant=True,
     )
     return ReviewListResponse(
         items=[ReviewListItem.model_validate(item) for item in items],
