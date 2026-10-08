@@ -18,12 +18,12 @@ from typing import Any, Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-from app.services.ai.knowledge.builder import (
+from app.features.knowledge.builder import (
     bilingual_chunks,
     build_faq_knowledge_text,
     faq_title,
 )
-from app.services.ai.knowledge.weaviate import (
+from app.features.knowledge.weaviate import (
     KnowledgeSourceType,
     delete_knowledge_by_source,
     delete_knowledge_by_source_type,
@@ -34,7 +34,7 @@ from app.services.ai.knowledge.weaviate import (
 
 logger = logging.getLogger(__name__)
 
-FAQ_SNAPSHOT_PATH = Path(__file__).resolve().parents[3] / "data" / "faqs.json"
+FAQ_SNAPSHOT_PATH = Path(__file__).resolve().parents[2] / "data" / "faqs.json"
 
 
 def load_faq_snapshot(path: Path | None = None) -> list[SimpleNamespace] | None:

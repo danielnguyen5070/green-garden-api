@@ -29,7 +29,7 @@ from app.features.categories.models import Category
 from app.features.customers.models import Customer
 from app.models.order import Order, OrderStatus
 from app.models.order_item import OrderItem
-from app.models.plant import Plant
+from app.features.plants.models import Plant
 from app.services.overview_service import build_overview
 
 AUTH_PREFIX = "/api/v1/auth"

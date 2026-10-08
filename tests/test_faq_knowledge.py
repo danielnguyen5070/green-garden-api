@@ -10,13 +10,13 @@ from typing import Any
 import pytest
 
 from app.services.ai import chat_tools
-from app.services.ai.knowledge import faq_indexer, retriever
-from app.services.ai.knowledge.faq_indexer import (
+from app.features.knowledge import faq_indexer, retriever
+from app.features.knowledge.faq_indexer import (
     FAQ_SNAPSHOT_PATH,
     load_faq_snapshot,
     reindex_all_faqs,
 )
-from app.services.ai.knowledge.weaviate import (
+from app.features.knowledge.weaviate import (
     COLLECTION_NAME,
     KnowledgeSourceType,
     knowledge_object_uuid,

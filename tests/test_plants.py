@@ -13,17 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.admins.models import Admin
 from app.features.categories.models import Category
-from app.models.plant import (
+from app.features.plants.models import (
     Plant,
     PlantDifficulty,
     PlantGrowthRate,
+    PlantImage,
+    PlantImageType,
     PlantSpaceRequirement,
     PlantSunlight,
     PlantType,
     PlantWatering,
 )
-from app.models.plant_image import PlantImage, PlantImageType
-from app.services.plant_service import get_plant, list_plants
+from app.features.plants.service import get_plant, list_plants
 
 
 AUTH_PREFIX = "/api/v1/auth"

@@ -33,11 +33,10 @@ from app.core.text import normalize_vn_phone
 from app.features.customers.models import Customer
 from app.models.order import ORDER_CURRENCY, Order, OrderStatus, PaymentMethod
 from app.models.order_item import OrderItem
-from app.models.plant import Plant
-from app.models.plant_pot_size import PlantPotSize
+from app.features.plants.models import Plant, PlantPotSize
 from app.features.customers.service import resolve_customer_for_order
 from app.features.notifications.service import queue_new_order_notification
-from app.services.plant_service import PlantNotFoundError
+from app.features.plants.service import PlantNotFoundError
 from app.shared.storefront_notify import notify_storefront
 
 _ORDER_NUMBER_PREFIX = "GG"

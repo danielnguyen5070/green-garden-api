@@ -10,7 +10,7 @@ import logging
 from typing import Any
 
 from app.core.config import Settings, get_settings
-from app.services.ai.knowledge.weaviate import (
+from app.features.knowledge.weaviate import (
     COLLECTION_NAME,
     PLANT_COLLECTION_NAME,
     KnowledgeSourceType,

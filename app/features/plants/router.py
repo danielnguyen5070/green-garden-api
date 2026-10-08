@@ -10,25 +10,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.features.auth.dependencies import get_current_admin
-from app.schemas.plant import (
+from app.features.plants.schemas import (
     PlantCreate,
+    PlantImageCreate,
+    PlantImageResponse,
+    PlantImageUpdate,
     PlantListItem,
     PlantListResponse,
+    PlantPotSizeCreate,
+    PlantPotSizeResponse,
+    PlantPotSizeUpdate,
     PlantResponse,
     PlantStatusUpdate,
     PlantUpdate,
 )
-from app.schemas.plant_image import (
-    PlantImageCreate,
-    PlantImageResponse,
-    PlantImageUpdate,
-)
-from app.schemas.plant_pot_size import (
-    PlantPotSizeCreate,
-    PlantPotSizeResponse,
-    PlantPotSizeUpdate,
-)
-from app.services.plant_service import (
+from app.features.plants.service import (
     CategoryNotFoundError,
     PlantImageNotFoundError,
     PlantNotFoundError,

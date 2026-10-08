@@ -34,7 +34,7 @@ from app.services.order_service import (
     list_orders,
     update_order_status,
 )
-from app.services.plant_service import PlantNotFoundError
+from app.features.plants.service import PlantNotFoundError
 
 router = APIRouter(
     prefix="/orders",

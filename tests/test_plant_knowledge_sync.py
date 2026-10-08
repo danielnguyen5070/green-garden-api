@@ -13,11 +13,11 @@ from httpx import AsyncClient
 from app.core.config import get_settings
 from app.features.admins.models import Admin
 from app.features.categories.models import Category
-from app.services.ai.knowledge.plant_indexer import (
+from app.features.knowledge.plant_indexer import (
     plant_chunks_to_weaviate_objects,
     sync_plant_knowledge,
 )
-from app.services.ai.knowledge.weaviate import KnowledgeSourceType, knowledge_object_uuid
+from app.features.knowledge.weaviate import KnowledgeSourceType, knowledge_object_uuid
 
 
 AUTH_PREFIX = "/api/v1/auth"
@@ -85,23 +85,23 @@ def plant_knowledge_store(monkeypatch: pytest.MonkeyPatch) -> _InMemoryPlantKnow
     monkeypatch.setattr(settings, "weaviate_enabled", True)
 
     monkeypatch.setattr(
-        "app.services.ai.knowledge.plant_indexer.get_settings",
+        "app.features.knowledge.plant_indexer.get_settings",
         lambda: settings,
     )
     monkeypatch.setattr(
-        "app.services.ai.knowledge.plant_indexer.get_weaviate_client",
+        "app.features.knowledge.plant_indexer.get_weaviate_client",
         lambda *_a, **_k: object(),
     )
     monkeypatch.setattr(
-        "app.services.ai.knowledge.plant_indexer.ensure_plant_knowledge_collection",
+        "app.features.knowledge.plant_indexer.ensure_plant_knowledge_collection",
         lambda *_a, **_k: object(),
     )
     monkeypatch.setattr(
-        "app.services.ai.knowledge.plant_indexer.delete_plant_knowledge_by_source",
+        "app.features.knowledge.plant_indexer.delete_plant_knowledge_by_source",
         store.delete,
     )
     monkeypatch.setattr(
-        "app.services.ai.knowledge.plant_indexer.upsert_plant_knowledge_objects",
+        "app.features.knowledge.plant_indexer.upsert_plant_knowledge_objects",
         store.upsert,
     )
     yield store
@@ -272,7 +272,7 @@ def test_sync_plant_knowledge_disabled_is_noop(monkeypatch: pytest.MonkeyPatch) 
     settings = get_settings()
     monkeypatch.setattr(settings, "weaviate_enabled", False)
     monkeypatch.setattr(
-        "app.services.ai.knowledge.plant_indexer.get_settings",
+        "app.features.knowledge.plant_indexer.get_settings",
         lambda: settings,
     )
     plant = SimpleNamespace(id=uuid.uuid4(), is_active=True)

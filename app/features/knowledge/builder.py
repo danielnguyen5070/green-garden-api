@@ -15,7 +15,7 @@ from langchain_text_splitters import (
     RecursiveCharacterTextSplitter,
 )
 
-from app.services.ai.knowledge.weaviate import (
+from app.features.knowledge.weaviate import (
     KnowledgeSourceType,
     knowledge_object_uuid,
 )
@@ -53,7 +53,7 @@ class PlantChunk(TypedDict):
     section: NotRequired[str]
     metadata: PlantChunkMetadata
 
-# Plant columns used for semantic knowledge (from `app.models.plant.Plant`).
+# Plant columns used for semantic knowledge (from `app.features.plants.models.Plant`).
 # Excluded on purpose: price, price_vi, stock, sku, og_image_url, is_*, timestamps.
 _PLANT_CARE_ENUM_FIELDS = (
     "plant_type",

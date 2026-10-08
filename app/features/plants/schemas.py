@@ -1,4 +1,4 @@
-"""Plant request/response schemas (admin + public storefront)."""
+"""Plant, plant media and pot size request/response schemas (admin + public storefront)."""
 
 from __future__ import annotations
 
@@ -9,25 +9,30 @@ from uuid import UUID
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
 
 from app.core.text import normalize_slug, normalize_sku
-from app.models.plant import (
+from app.features.plants.models import (
     PlantDifficulty,
     PlantGrowthRate,
+    PlantImageType,
     PlantSpaceRequirement,
     PlantSunlight,
     PlantType,
     PlantWatering,
 )
 from app.features.categories.schemas import CategorySummary
-from app.schemas.plant_image import PlantImageResponse, PublicPlantImage
-from app.schemas.plant_pot_size import PlantPotSizeResponse, PublicPotSizeSummary
 
 __all__ = [
     "CategorySummary",
     "PlantCreate",
     "PlantDifficulty",
     "PlantGrowthRate",
+    "PlantImageCreate",
+    "PlantImageResponse",
+    "PlantImageUpdate",
     "PlantListItem",
     "PlantListResponse",
+    "PlantPotSizeCreate",
+    "PlantPotSizeResponse",
+    "PlantPotSizeUpdate",
     "PlantResponse",
     "PlantSpaceRequirement",
     "PlantStatusUpdate",
@@ -36,10 +41,152 @@ __all__ = [
     "PlantUpdate",
     "PlantWatering",
     "PublicPlantDetail",
+    "PublicPlantImage",
     "PublicPlantListItem",
     "PublicPlantListResponse",
     "PublicPlantSearchResponse",
+    "PublicPotSizeSummary",
 ]
+
+
+class PlantImageCreate(BaseModel):
+    url: AnyHttpUrl
+    type: PlantImageType = PlantImageType.IMAGE
+    alt_text: str | None = Field(default=None, max_length=255)
+    sort_order: int = Field(default=0, ge=0)
+
+    @field_validator("url")
+    @classmethod
+    def url_within_column_length(cls, value: AnyHttpUrl) -> AnyHttpUrl:
+        if len(str(value)) > 1024:
+            raise ValueError("URL must be at most 1024 characters")
+        return value
+
+    @field_validator("alt_text")
+    @classmethod
+    def strip_alt_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class PlantImageUpdate(BaseModel):
+    url: AnyHttpUrl | None = None
+    type: PlantImageType | None = None
+    alt_text: str | None = Field(default=None, max_length=255)
+    sort_order: int | None = Field(default=None, ge=0)
+
+    @field_validator("url")
+    @classmethod
+    def url_within_column_length(cls, value: AnyHttpUrl | None) -> AnyHttpUrl | None:
+        if value is not None and len(str(value)) > 1024:
+            raise ValueError("URL must be at most 1024 characters")
+        return value
+
+    @field_validator("alt_text")
+    @classmethod
+    def strip_alt_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class PlantImageResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    plant_id: UUID
+    url: str
+    type: PlantImageType
+    alt_text: str | None
+    sort_order: int
+    created_at: datetime
+
+
+class PublicPlantImage(BaseModel):
+    """Storefront media row — no `plant_id` back-reference, no audit timestamp.
+
+    `type` tells the storefront whether the URL is an image or a video, since
+    both live in `plant_images`.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    url: str
+    type: PlantImageType
+    alt_text: str | None
+    sort_order: int
+
+
+class PlantPotSizeCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    # DB enforces price_adjustment >= 0 (ck_plant_pot_sizes_price_adjustment_non_negative)
+    price_adjustment: Decimal = Field(
+        default=Decimal("0.00"), ge=0, max_digits=12, decimal_places=2
+    )
+    # Applied on top of the plant's Vietnamese price; omit when there is none
+    price_adjustment_vi: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2
+    )
+    sort_order: int = Field(default=0, ge=0)
+    is_active: bool = True
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Name is required")
+        return stripped
+
+
+class PlantPotSizeUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    price_adjustment: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2
+    )
+    price_adjustment_vi: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2
+    )
+    sort_order: int | None = Field(default=None, ge=0)
+    is_active: bool | None = None
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Name cannot be empty")
+        return stripped
+
+
+class PublicPotSizeSummary(BaseModel):
+    """The pot size a catalogue card sells by default, priced in VND."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    price_adjustment_vi: Decimal | None
+
+
+class PlantPotSizeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    plant_id: UUID
+    name: str
+    price_adjustment: Decimal
+    price_adjustment_vi: Decimal | None
+    sort_order: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
 
 
 class PlantCreate(BaseModel):

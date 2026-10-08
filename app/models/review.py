@@ -11,7 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
-    from app.models.plant import Plant
+    from app.features.plants.models import Plant
 
 
 class ReviewStatus(str, enum.Enum):

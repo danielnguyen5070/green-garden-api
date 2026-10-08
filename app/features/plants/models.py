@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import enum
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    DateTime,
     Enum,
     ForeignKey,
     Index,
@@ -15,6 +17,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    func,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -24,9 +27,6 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.features.categories.models import Category
     from app.models.order_item import OrderItem
-    from app.models.plant_image import PlantImage
-    from app.models.plant_pot_size import PlantPotSize
-    from app.models.plant_slug_history import PlantSlugHistory
 
 
 class PlantType(str, enum.Enum):
@@ -195,3 +195,104 @@ class Plant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         passive_deletes=True,
         lazy="noload",
     )
+
+
+class PlantImageType(str, enum.Enum):
+    IMAGE = "image"
+    VIDEO = "video"
+
+
+class PlantImage(Base, UUIDPrimaryKeyMixin):
+    """External media URL for a plant (image or video). No binary storage."""
+
+    __tablename__ = "plant_images"
+    __table_args__ = (Index("ix_plant_images_plant_id", "plant_id"),)
+
+    plant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("plants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    type: Mapped[PlantImageType] = mapped_column(
+        Enum(
+            PlantImageType,
+            name="plant_image_type",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=PlantImageType.IMAGE,
+    )
+    alt_text: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    plant: Mapped[Plant] = relationship("Plant", back_populates="images")
+
+
+class PlantPotSize(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Optional pot size variant for a plant (e.g. Small / Medium / Large)."""
+
+    __tablename__ = "plant_pot_sizes"
+    __table_args__ = (
+        CheckConstraint(
+            "price_adjustment >= 0",
+            name="ck_plant_pot_sizes_price_adjustment_non_negative",
+        ),
+        # NULL price_adjustment_vi passes the check: the Vietnamese adjustment is optional
+        CheckConstraint(
+            "price_adjustment_vi >= 0",
+            name="ck_plant_pot_sizes_price_adjustment_vi_non_negative",
+        ),
+        Index("ix_plant_pot_sizes_plant_id", "plant_id"),
+    )
+
+    plant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("plants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    price_adjustment: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        server_default="0",
+        nullable=False,
+    )
+    # Applied on top of plants.price_vi; NULL means no Vietnamese adjustment is set
+    price_adjustment_vi: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+    )
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+
+    plant: Mapped[Plant] = relationship("Plant", back_populates="pot_sizes")
+
+
+class PlantSlugHistory(Base, UUIDPrimaryKeyMixin):
+    """A slug a plant used before, kept so old storefront URLs still resolve."""
+
+    __tablename__ = "plant_slug_history"
+    __table_args__ = (Index("ix_plant_slug_history_plant_id", "plant_id"),)
+
+    plant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("plants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    # A slug maps to at most one plant; a live `plants.slug` always wins over history.
+    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    plant: Mapped[Plant] = relationship("Plant", back_populates="slug_history")

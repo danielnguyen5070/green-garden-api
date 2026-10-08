@@ -16,7 +16,7 @@ from app.core.config import get_settings
 from app.features.categories.models import Category
 from app.models.order import Order
 from app.models.payment_transaction import PaymentTransaction
-from app.models.plant import Plant
+from app.features.plants.models import Plant
 
 CHECKOUT_PATH = "/api/v1/storefront/orders"
 WEBHOOK_PATH = "/api/v1/payments/sepay/webhook"

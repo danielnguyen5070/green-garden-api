@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.admins.models import Admin
 from app.features.categories.models import Category
 from app.features.notifications.models import Notification, NotificationType
-from app.models.plant import Plant
+from app.features.plants.models import Plant
 
 
 AUTH_PREFIX = "/api/v1/auth"

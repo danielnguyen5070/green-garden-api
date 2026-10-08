@@ -10,8 +10,8 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.text import escape_ilike_pattern, normalize_search_query, normalize_slug
-from app.models.plant import Plant
-from app.services.ai.knowledge.retriever import (
+from app.features.plants.models import Plant
+from app.features.knowledge.retriever import (
     search_faq_knowledge,
     search_plant_knowledge,
 )

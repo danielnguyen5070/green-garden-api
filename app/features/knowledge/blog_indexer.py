@@ -13,12 +13,12 @@ from typing import Any, Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-from app.services.ai.knowledge.builder import (
+from app.features.knowledge.builder import (
     bilingual_chunks,
     blog_title,
     build_blog_knowledge_text,
 )
-from app.services.ai.knowledge.weaviate import (
+from app.features.knowledge.weaviate import (
     KnowledgeSourceType,
     delete_knowledge_by_source,
     ensure_knowledge_collection,

@@ -12,19 +12,20 @@ from sqlalchemy.orm import noload, selectinload
 
 from app.core.text import escape_ilike_pattern, normalize_search_query
 from app.features.categories.models import Category
-from app.models.plant import (
+from app.features.plants.models import (
     Plant,
     PlantDifficulty,
     PlantGrowthRate,
+    PlantImage,
+    PlantImageType,
+    PlantPotSize,
+    PlantSlugHistory,
     PlantSpaceRequirement,
     PlantSunlight,
     PlantType,
     PlantWatering,
 )
-from app.models.plant_image import PlantImage, PlantImageType
-from app.models.plant_pot_size import PlantPotSize
-from app.models.plant_slug_history import PlantSlugHistory
-from app.services.ai.knowledge.plant_indexer import sync_plant_knowledge_safe
+from app.features.knowledge.plant_indexer import sync_plant_knowledge_safe
 from app.shared.storefront_notify import notify_storefront
 from app.features.categories.service import CategoryNotFoundError, get_category
 
@@ -715,3 +716,26 @@ async def delete_plant_pot_size(
         await session.rollback()
         raise
     notify_storefront("plants")
+
+
+def sorted_images(plant: Plant) -> list[PlantImage]:
+    """Media in display order: `sort_order` first, oldest first on a tie."""
+    return sorted(plant.images, key=lambda image: (image.sort_order, image.created_at))
+
+
+def active_pot_sizes(plant: Plant) -> list[PlantPotSize]:
+    """Pot sizes on sale, default first — the same order checkout resolves."""
+    return sorted(
+        (size for size in plant.pot_sizes if size.is_active),
+        key=lambda size: (size.sort_order, size.name),
+    )
+
+
+def primary_image_url(plant: Plant) -> str | None:
+    """First still image in display order, else the first media of any kind."""
+    images = sorted_images(plant)
+    primary = next(
+        (image for image in images if image.type is PlantImageType.IMAGE),
+        images[0] if images else None,
+    )
+    return primary.url if primary is not None else None

@@ -11,18 +11,19 @@ from app.models.payment_transaction import (
     PaymentProvider,
     PaymentTransaction,
 )
-from app.models.plant import (
+from app.features.plants.models import (
     Plant,
     PlantDifficulty,
     PlantGrowthRate,
+    PlantImage,
+    PlantImageType,
+    PlantPotSize,
+    PlantSlugHistory,
     PlantSpaceRequirement,
     PlantSunlight,
     PlantType,
     PlantWatering,
 )
-from app.models.plant_image import PlantImage, PlantImageType
-from app.models.plant_pot_size import PlantPotSize
-from app.models.plant_slug_history import PlantSlugHistory
 from app.models.review import Review, ReviewStatus
 from app.features.notifications.models import Notification, NotificationType
 

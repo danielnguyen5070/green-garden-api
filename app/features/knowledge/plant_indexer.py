@@ -16,9 +16,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-from app.models.plant import Plant
-from app.services.ai.knowledge.builder import prepare_plant_chunks
-from app.services.ai.knowledge.weaviate import (
+from app.features.plants.models import Plant
+from app.features.knowledge.builder import prepare_plant_chunks
+from app.features.knowledge.weaviate import (
     KnowledgeSourceType,
     PLANT_COLLECTION_NAME,
     delete_plant_knowledge_by_source,

@@ -19,9 +19,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.text import normalize_slug
 from app.models.order import ORDER_CURRENCY, Order, PaymentMethod
-from app.models.plant import Plant
-from app.models.plant_image import PlantImage, PlantImageType
-from app.models.plant_pot_size import PlantPotSize
+from app.features.plants.models import Plant, PlantImage, PlantImageType, PlantPotSize
 from app.models.review import ReviewStatus
 from app.features.categories.schemas import (
     PublicCategoryListItem,
@@ -36,14 +34,16 @@ from app.schemas.order import (
     StorefrontQuoteResponse,
 )
 from app.schemas.payment import BankTransferInfo, StorefrontPaymentStatusResponse
-from app.schemas.plant import (
+from app.features.plants.schemas import (
+    PlantImageResponse,
+    PlantPotSizeResponse,
     PublicPlantDetail,
+    PublicPlantImage,
     PublicPlantListItem,
     PublicPlantListResponse,
     PublicPlantSearchResponse,
+    PublicPotSizeSummary,
 )
-from app.schemas.plant_image import PlantImageResponse, PublicPlantImage
-from app.schemas.plant_pot_size import PlantPotSizeResponse, PublicPotSizeSummary
 from app.schemas.review import (
     PublicReviewListItem,
     PublicReviewListResponse,
@@ -76,7 +76,12 @@ from app.services.order_service import (
     quote_order,
 )
 from app.services.payment_service import bank_transfer_info
-from app.services.plant_service import (
+from app.features.plants.dependencies import (
+    PLANT_NOT_FOUND_RESPONSES,
+    get_active_plant_or_404,
+)
+from app.features.plants.service import (
+    primary_image_url,
     PlantNotFoundError,
     SearchLocale,
     SortField,
@@ -94,60 +99,10 @@ from app.services.review_service import (
 
 router = APIRouter(prefix="/storefront", tags=["storefront"])
 
-_PLANT_NOT_FOUND = {
-    status.HTTP_404_NOT_FOUND: {"description": "Plant not found or inactive"}
-}
-
 
 def _payment_info(order: Order) -> BankTransferInfo | None:
     details = bank_transfer_info(order)
     return BankTransferInfo(**details._asdict()) if details is not None else None
-
-
-def _sorted_images(plant: Plant) -> list[PlantImage]:
-    """Media in display order: `sort_order` first, oldest first on a tie."""
-    return sorted(plant.images, key=lambda image: (image.sort_order, image.created_at))
-
-
-def _active_pot_sizes(plant: Plant) -> list[PlantPotSize]:
-    """Pot sizes on sale, default first — the same order checkout resolves."""
-    return sorted(
-        (size for size in plant.pot_sizes if size.is_active),
-        key=lambda size: (size.sort_order, size.name),
-    )
-
-
-def _primary_image_url(plant: Plant) -> str | None:
-    """First still image in display order, else the first media of any kind."""
-    images = _sorted_images(plant)
-    primary = next(
-        (image for image in images if image.type is PlantImageType.IMAGE),
-        images[0] if images else None,
-    )
-    return primary.url if primary is not None else None
-
-
-def _public_list_item(plant: Plant) -> PublicPlantListItem:
-    pot_sizes = _active_pot_sizes(plant)
-    return PublicPlantListItem(
-        id=plant.id,
-        name=plant.name,
-        name_vi=plant.name_vi,
-        slug=plant.slug,
-        description=plant.description,
-        description_vi=plant.description_vi,
-        og_image_url=plant.og_image_url,
-        price=plant.price,
-        price_vi=plant.price_vi,
-        stock=plant.stock,
-        is_featured=plant.is_featured,
-        category=plant.category,
-        images=[PublicPlantImage.model_validate(image) for image in _sorted_images(plant)],
-        default_pot_size=(
-            PublicPotSizeSummary.model_validate(pot_sizes[0]) if pot_sizes else None
-        ),
-        updated_at=plant.updated_at,
-    )
 
 
 async def _public_review_page(
@@ -176,16 +131,6 @@ async def _public_review_page(
         total_reviews=summary.total_reviews,
         rating_distribution=summary.rating_distribution,
     )
-
-
-async def _active_plant_or_404(db: AsyncSession, slug: str) -> Plant:
-    try:
-        return await get_plant_by_slug(db, normalize_slug(slug), active_only=True)
-    except PlantNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
 
 
 @router.get(
@@ -246,7 +191,7 @@ async def post_public_review(
         "`created_at` descending, with the plant's average rating and star "
         "distribution. Old slugs resolve to the plant like the detail endpoint."
     ),
-    responses=_PLANT_NOT_FOUND,
+    responses=PLANT_NOT_FOUND_RESPONSES,
 )
 async def get_public_plant_reviews(
     slug: str,
@@ -254,7 +199,7 @@ async def get_public_plant_reviews(
     page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ) -> PublicReviewListResponse:
-    plant = await _active_plant_or_404(db, slug)
+    plant = await get_active_plant_or_404(db, slug)
     return await _public_review_page(
         db, page=page, page_size=page_size, plant_id=plant.id
     )
@@ -272,7 +217,7 @@ async def get_public_plant_reviews(
         "Bot protection: the hidden `website` field must be empty and "
         "`form_elapsed_ms` must be at least 3000, otherwise `403`."
     ),
-    responses={**_PLANT_NOT_FOUND, **BOT_REJECTED_RESPONSES},
+    responses={**PLANT_NOT_FOUND_RESPONSES, **BOT_REJECTED_RESPONSES},
 )
 async def post_public_plant_review(
     slug: str,
@@ -280,7 +225,7 @@ async def post_public_plant_review(
     db: AsyncSession = Depends(get_db),
 ) -> ReviewResponse:
     verify_bot_signals_or_403(payload)
-    plant = await _active_plant_or_404(db, slug)
+    plant = await get_active_plant_or_404(db, slug)
     review = await create_review(
         db,
         name=payload.name,
@@ -289,150 +234,6 @@ async def post_public_plant_review(
         plant_id=plant.id,
     )
     return ReviewResponse.model_validate(review)
-
-
-@router.get(
-    "/plants",
-    response_model=PublicPlantListResponse,
-    summary="List active plants (public)",
-    description=(
-        "Paginated storefront catalogue. Inactive plants are never returned.\n\n"
-        "Each row carries everything a catalogue card needs — English and "
-        "Vietnamese copy (`name` / `name_vi`, `description` / `description_vi`, "
-        "one shared `slug`), the VND selling price `price_vi` (the legacy "
-        "`price` is never charged), `stock`, `is_featured`, the category "
-        "summary, the plant's media ordered by `sort_order` ascending, and "
-        "`default_pot_size` — the pot size checkout uses when none is chosen — "
-        "so the frontend never has to call the detail endpoint per card. Images "
-        "and pot sizes are loaded with one extra query each for the whole page."
-    ),
-)
-async def get_public_plants(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    search: str | None = Query(default=None, description="Match plant name or SKU"),
-    category_id: UUID | None = Query(default=None),
-    is_featured: bool | None = Query(default=None),
-    min_price: Decimal | None = Query(default=None, ge=0),
-    max_price: Decimal | None = Query(default=None, ge=0),
-    sort: SortField = Query(default="created_at"),
-    order: SortOrder = Query(default="desc"),
-    db: AsyncSession = Depends(get_db),
-) -> PublicPlantListResponse:
-    """Paginated catalogue for the storefront. Inactive plants are never returned."""
-    items, total = await list_plants(
-        db,
-        page=page,
-        page_size=page_size,
-        search=search,
-        category_id=category_id,
-        is_active=True,
-        is_featured=is_featured,
-        min_price=min_price,
-        max_price=max_price,
-        sort=sort,
-        order=order,
-        with_images=True,
-    )
-    return PublicPlantListResponse(
-        items=[_public_list_item(plant) for plant in items],
-        page=page,
-        page_size=page_size,
-        total=total,
-    )
-
-
-@router.get(
-    "/plants/search",
-    response_model=PublicPlantSearchResponse,
-    summary="Search active plants (public)",
-    description=(
-        "Keyword search over the active storefront catalogue. Matching is "
-        "partial and case-insensitive; LIKE metacharacters in `q` are treated "
-        "literally.\n\n"
-        "`locale` selects which copy columns to search: `en` matches `name` / "
-        "`description`, `vi` matches `name_vi` / `description_vi`. An empty or "
-        "whitespace-only `q` returns zero results rather than the full "
-        "catalogue. Results are capped by `limit` (default 20, max 100)."
-    ),
-)
-async def search_public_plants(
-    q: str = Query(default="", max_length=255, description="Search keyword"),
-    locale: SearchLocale = Query(
-        default="vi",
-        description="Which locale fields to search (`vi` or `en`)",
-    ),
-    limit: int = Query(default=20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
-) -> PublicPlantSearchResponse:
-    """Locale-aware storefront search. Inactive plants are never returned."""
-    query, items, total = await search_plants(
-        db,
-        query=q,
-        locale=locale,
-        limit=limit,
-    )
-    return PublicPlantSearchResponse(
-        query=query,
-        total=total,
-        items=[_public_list_item(plant) for plant in items],
-    )
-
-
-@router.get(
-    "/plants/{slug}",
-    response_model=PublicPlantDetail,
-    summary="Get active plant by slug (public)",
-    responses={
-        status.HTTP_404_NOT_FOUND: {"description": "Plant not found or inactive"}
-    },
-)
-async def get_public_plant_by_slug(
-    slug: str,
-    db: AsyncSession = Depends(get_db),
-) -> PublicPlantDetail:
-    """Storefront detail by slug. Returns 404 for unknown or inactive plants."""
-    try:
-        plant = await get_plant_by_slug(db, normalize_slug(slug), active_only=True)
-    except PlantNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-
-    return PublicPlantDetail(
-        id=plant.id,
-        name=plant.name,
-        name_vi=plant.name_vi,
-        slug=plant.slug,
-        description=plant.description,
-        description_vi=plant.description_vi,
-        long_description=plant.long_description,
-        long_description_vi=plant.long_description_vi,
-        og_image_url=plant.og_image_url,
-        price=plant.price,
-        price_vi=plant.price_vi,
-        is_featured=plant.is_featured,
-        in_stock=plant.stock > 0,
-        plant_type=plant.plant_type,
-        difficulty=plant.difficulty,
-        growth_rate=plant.growth_rate,
-        sunlight=plant.sunlight,
-        watering=plant.watering,
-        space_requirement=plant.space_requirement,
-        indoor_suitable=plant.indoor_suitable,
-        outdoor_suitable=plant.outdoor_suitable,
-        pet_safe=plant.pet_safe,
-        beginner_friendly=plant.beginner_friendly,
-        category=plant.category,
-        images=[
-            PlantImageResponse.model_validate(image)
-            for image in _sorted_images(plant)
-        ],
-        pot_sizes=[
-            PlantPotSizeResponse.model_validate(size) for size in _active_pot_sizes(plant)
-        ],
-    )
 
 
 @router.get(
@@ -501,7 +302,7 @@ async def post_storefront_quote(
                 slug=plant.slug if visible else None,
                 name=plant.name if visible else None,
                 name_vi=plant.name_vi if visible else None,
-                image_url=_primary_image_url(plant) if visible else None,
+                image_url=primary_image_url(plant) if visible else None,
                 pot_size_name=line.pot_size.name if line.pot_size is not None else None,
                 unit_price=line.unit_price,
                 line_total=line.line_total,

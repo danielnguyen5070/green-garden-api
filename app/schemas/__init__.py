@@ -56,28 +56,24 @@ from app.schemas.overview import (
     SalesPeriodStats,
     TopPlant,
 )
-from app.schemas.plant import (
+from app.features.plants.schemas import (
     PlantCreate,
+    PlantImageCreate,
+    PlantImageResponse,
+    PlantImageUpdate,
     PlantListItem,
     PlantListResponse,
+    PlantPotSizeCreate,
+    PlantPotSizeResponse,
+    PlantPotSizeUpdate,
     PlantResponse,
     PlantStatusUpdate,
     PlantUpdate,
     PublicPlantDetail,
+    PublicPlantImage,
     PublicPlantListItem,
     PublicPlantListResponse,
     PublicPlantSearchResponse,
-)
-from app.schemas.plant_image import (
-    PlantImageCreate,
-    PlantImageResponse,
-    PlantImageUpdate,
-    PublicPlantImage,
-)
-from app.schemas.plant_pot_size import (
-    PlantPotSizeCreate,
-    PlantPotSizeResponse,
-    PlantPotSizeUpdate,
 )
 from app.schemas.review import (
     PublicReviewListItem,

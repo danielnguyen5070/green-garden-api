@@ -20,8 +20,7 @@ from app.features.categories.models import Category
 from app.features.customers.models import Customer
 from app.models.order import Order
 from app.models.order_item import OrderItem
-from app.models.plant import Plant
-from app.models.plant_pot_size import PlantPotSize
+from app.features.plants.models import Plant, PlantPotSize
 from app.services.order_service import get_order, list_orders
 
 

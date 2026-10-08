@@ -10,7 +10,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.plant import Plant
+from app.features.plants.models import Plant
 from app.models.review import Review, ReviewStatus
 from app.shared.storefront_notify import notify_storefront
 
