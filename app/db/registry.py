@@ -1,6 +1,6 @@
 """Import every model so SQLAlchemy resolves string relationships and Alembic sees all tables."""
 
-from app.models.admin import Admin
+from app.features.admins.models import Admin
 from app.db.base import Base
 from app.features.categories.models import Category
 from app.features.customers.models import Customer

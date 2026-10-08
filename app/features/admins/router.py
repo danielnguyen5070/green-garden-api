@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies.auth import get_current_admin
-from app.models.admin import Admin
-from app.schemas.admin import (
+from app.features.auth.dependencies import get_current_admin
+from app.features.admins.models import Admin
+from app.features.admins.schemas import (
     AdminCreate,
     AdminListResponse,
     AdminPasswordUpdate,
@@ -18,8 +18,8 @@ from app.schemas.admin import (
     AdminStatusUpdate,
     AdminUpdate,
 )
-from app.schemas.auth import MessageResponse
-from app.services.admin_service import (
+from app.features.auth.schemas import MessageResponse
+from app.features.admins.service import (
     AdminNotFoundError,
     EmailConflictError,
     SelfDeactivationError,

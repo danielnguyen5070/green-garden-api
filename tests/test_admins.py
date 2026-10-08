@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password, verify_password
-from app.models.admin import Admin
+from app.features.admins.models import Admin
 
 
 AUTH_PREFIX = "/api/v1/auth"

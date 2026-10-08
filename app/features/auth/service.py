@@ -20,7 +20,7 @@ from app.core.security import (
     normalize_email,
     verify_password,
 )
-from app.models.admin import Admin
+from app.features.admins.models import Admin
 
 
 class AuthenticationError(Exception):
@@ -90,7 +90,7 @@ async def create_admin(
     password: str,
 ) -> Admin:
     """Create an admin with a hashed password (CLI / bootstrap)."""
-    from app.services.admin_service import EmailConflictError, create_admin_account
+    from app.features.admins.service import EmailConflictError, create_admin_account
 
     try:
         return await create_admin_account(

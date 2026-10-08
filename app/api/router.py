@@ -2,8 +2,8 @@ from fastapi import APIRouter
 
 from app.db import registry  # noqa: F401
 
-from app.api.v1 import admins as admins_router
-from app.api.v1 import auth as auth_router
+from app.features.admins import router as admins_router
+from app.features.auth import router as auth_router
 from app.features.categories import public_router as categories_public_router
 from app.features.categories import router as categories_router
 from app.api.v1 import chat as chat_router

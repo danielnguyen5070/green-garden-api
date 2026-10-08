@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import get_settings
 from app.core.security import hash_password, normalize_email
 from app.db import registry  # noqa: F401
-from app.models.admin import Admin
+from app.features.admins.models import Admin
 from app.features.categories.models import Category
 
 

@@ -24,7 +24,7 @@ from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.admin import Admin
+from app.features.admins.models import Admin
 from app.features.categories.models import Category
 from app.features.customers.models import Customer
 from app.models.order import Order, OrderStatus

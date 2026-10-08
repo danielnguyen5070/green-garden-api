@@ -11,7 +11,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.config import get_settings
-from app.models.admin import Admin
+from app.features.admins.models import Admin
 from app.features.categories.models import Category
 from app.services.ai.knowledge.plant_indexer import (
     plant_chunks_to_weaviate_objects,

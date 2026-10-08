@@ -1,6 +1,6 @@
 """Pydantic schemas package."""
 
-from app.schemas.admin import (
+from app.features.admins.schemas import (
     AdminCreate,
     AdminListResponse,
     AdminPasswordUpdate,
@@ -8,7 +8,7 @@ from app.schemas.admin import (
     AdminStatusUpdate,
     AdminUpdate,
 )
-from app.schemas.auth import (
+from app.features.auth.schemas import (
     AdminLoginRequest,
     AuthResponse,
     MessageResponse,

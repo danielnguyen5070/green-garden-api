@@ -11,7 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies.auth import get_current_admin
+from app.features.auth.dependencies import get_current_admin
 from app.schemas.overview import OverviewResponse
 from app.services.overview_service import LOW_STOCK_THRESHOLD, build_overview
 

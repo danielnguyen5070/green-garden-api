@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies.auth import get_current_admin
+from app.features.auth.dependencies import get_current_admin
 from app.schemas.plant import (
     PlantCreate,
     PlantListItem,

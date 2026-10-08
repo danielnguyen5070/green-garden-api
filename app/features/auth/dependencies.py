@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models.admin import Admin
-from app.services.auth_service import AuthenticationError, resolve_admin_from_token
+from app.features.admins.models import Admin
+from app.features.auth.service import AuthenticationError, resolve_admin_from_token
 
 
 async def get_current_admin(

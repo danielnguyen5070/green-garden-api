@@ -8,8 +8,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password, normalize_email, validate_password_strength
-from app.models.admin import Admin
-from app.services.auth_service import get_admin_by_email, get_admin_by_id
+from app.features.admins.models import Admin
+from app.features.auth.service import get_admin_by_email, get_admin_by_id
 
 
 class AdminNotFoundError(Exception):

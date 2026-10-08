@@ -15,7 +15,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.models.admin import Admin
+from app.features.admins.models import Admin
 from app.features.categories.models import Category
 from app.models.plant import Plant
 from app.services.ai import chat_tools
