@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     app_name: str = "Green Garden API"
     app_env: str = "development"
     debug: bool = False
+    log_level: str = "INFO"
 
     database_url: str
     test_database_url: str | None = None

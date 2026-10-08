@@ -7,21 +7,31 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError, ConflictError, ErrorCode, NotFoundError
 from app.core.security import hash_password, normalize_email, validate_password_strength
 from app.features.admins.models import Admin
 from app.features.auth.service import get_admin_by_email, get_admin_by_id
 
 
-class AdminNotFoundError(Exception):
+class AdminNotFoundError(NotFoundError):
     """Raised when an admin id does not exist."""
 
+    error_code = ErrorCode.ADMIN_NOT_FOUND
+    message = "Admin not found"
 
-class EmailConflictError(Exception):
+
+class EmailConflictError(ConflictError):
     """Raised when an email is already used by another admin."""
 
+    error_code = ErrorCode.ADMIN_EMAIL_TAKEN
+    message = "Email is already used by another admin"
 
-class SelfDeactivationError(Exception):
+
+class SelfDeactivationError(BadRequestError):
     """Raised when an admin tries to deactivate their own account."""
+
+    error_code = ErrorCode.SELF_DEACTIVATION
+    message = "Cannot deactivate your own account"
 
 
 async def list_admins(

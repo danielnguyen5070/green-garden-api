@@ -416,7 +416,7 @@ async def test_create_order_rejects_inactive_customer(
         ),
     )
     assert response.status_code == 400
-    assert "inactive" in response.json()["detail"]
+    assert "inactive" in response.json()["message"]
     assert await _stock(client, plant) == 20
 
 
@@ -494,7 +494,7 @@ async def test_create_order_rejects_a_plant_without_a_vnd_price(
     plant = await _seed_plant(test_db_session, test_category, price_vi=None)
 
     response = await client.post(ORDERS_PREFIX, json=_order_payload(plant))
-    assert response.status_code == 400
+    assert response.status_code == 409
     assert await _stock(client, plant) == 20
 
 
@@ -642,8 +642,8 @@ async def test_create_order_insufficient_stock(
             items=[{"plant_id": str(plant.id), "quantity": 5}],
         ),
     )
-    assert response.status_code == 400
-    assert "stock" in response.json()["detail"].lower()
+    assert response.status_code == 409
+    assert "stock" in response.json()["message"].lower()
 
     # Neither the order, the customer nor the stock may have changed
     assert await _stock(client, plant) == 1
@@ -675,7 +675,7 @@ async def test_create_order_sums_quantity_per_plant_for_stock(
             ],
         ),
     )
-    assert response.status_code == 400
+    assert response.status_code == 409
     assert await _stock(client, plant) == 4
 
 
@@ -697,7 +697,7 @@ async def test_create_order_unknown_plant(
         ),
     )
     assert response.status_code == 404
-    assert response.json()["detail"] == "Plant not found"
+    assert response.json()["message"] == "Plant not found"
 
 
 @pytest.mark.asyncio
@@ -711,8 +711,8 @@ async def test_create_order_inactive_plant(
     plant = await _seed_plant(test_db_session, test_category, is_active=False)
 
     response = await client.post(ORDERS_PREFIX, json=_order_payload(plant))
-    assert response.status_code == 400
-    assert "not available" in response.json()["detail"]
+    assert response.status_code == 409
+    assert "not available" in response.json()["message"]
 
 
 @pytest.mark.asyncio
@@ -733,8 +733,8 @@ async def test_create_order_unknown_pot_size(
             items=[{"plant_id": str(plant.id), "quantity": 1, "pot_size": "Gigantic"}],
         ),
     )
-    assert response.status_code == 400
-    assert "Gigantic" in response.json()["detail"]
+    assert response.status_code == 404
+    assert "Gigantic" in response.json()["message"]
     assert await _stock(client, plant) == 20
 
 
@@ -756,7 +756,7 @@ async def test_create_order_inactive_pot_size(
             items=[{"plant_id": str(plant.id), "quantity": 1, "pot_size": "Large"}],
         ),
     )
-    assert response.status_code == 400
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -868,7 +868,7 @@ async def test_get_order_not_found(client: AsyncClient, active_admin: Admin) -> 
     await _login(client, active_admin)
     response = await client.get(f"{ORDERS_PREFIX}/{uuid4()}")
     assert response.status_code == 404
-    assert response.json()["detail"] == "Order not found"
+    assert response.json()["message"] == "Order not found"
 
 
 @pytest.mark.asyncio
@@ -1147,7 +1147,7 @@ async def test_update_order_status_rejects_backwards_transition(
 
     response = await _set_status(client, created["id"], "confirmed")
     assert response.status_code == 400
-    assert "shipping" in response.json()["detail"]
+    assert "shipping" in response.json()["message"]
 
 
 @pytest.mark.asyncio
@@ -1608,7 +1608,7 @@ async def test_checkout_with_insufficient_stock_returns_409(
     )
 
     assert response.status_code == 409
-    assert "stock" in response.json()["detail"].lower()
+    assert "stock" in response.json()["message"].lower()
     assert await _db_stock(test_db_session, plant) == 2
     assert await _orders_for_phone(test_db_session, phone) == 0
 
@@ -1656,7 +1656,7 @@ async def test_checkout_rejects_inactive_plant_with_409(
     response = await _checkout(client, plant)
 
     assert response.status_code == 409
-    assert "not available" in response.json()["detail"]
+    assert "not available" in response.json()["message"]
     assert await _db_stock(test_db_session, plant) == 10
 
 
@@ -1675,7 +1675,7 @@ async def test_checkout_unknown_plant_returns_404(
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "Plant not found"
+    assert response.json()["message"] == "Plant not found"
 
 
 @pytest.mark.asyncio
@@ -1694,7 +1694,7 @@ async def test_checkout_unknown_pot_size_returns_404(
     )
 
     assert response.status_code == 404
-    assert "Chậu 90cm" in response.json()["detail"]
+    assert "Chậu 90cm" in response.json()["message"]
     assert await _db_stock(test_db_session, plant) == 10
 
 
@@ -1738,7 +1738,7 @@ async def test_checkout_rejects_deactivated_customer_with_400(
     )
 
     assert response.status_code == 400
-    assert "inactive" in response.json()["detail"].lower()
+    assert "inactive" in response.json()["message"].lower()
     assert await _db_stock(test_db_session, plant) == 10
 
 
@@ -1985,7 +1985,7 @@ async def test_checkout_rejects_a_plant_without_a_vietnamese_price(
     response = await _checkout(client, plant)
 
     assert response.status_code == 409
-    assert "not available" in response.json()["detail"]
+    assert "not available" in response.json()["message"]
     assert await _db_stock(test_db_session, plant) == 10
 
 

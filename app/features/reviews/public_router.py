@@ -25,10 +25,8 @@ from app.features.reviews.service import (
     get_review_summary,
     list_reviews,
 )
-from app.shared.bot_protection.http import (
-    BOT_REJECTED_RESPONSES,
-    verify_bot_signals_or_403,
-)
+from app.shared.bot_protection.http import BOT_REJECTED_RESPONSES
+from app.shared.bot_protection.service import verify_bot_signals
 
 router = APIRouter(prefix="/storefront", tags=["storefront"])
 
@@ -100,7 +98,7 @@ async def post_public_review(
     payload: ReviewCreate,
     db: AsyncSession = Depends(get_db),
 ) -> ReviewResponse:
-    verify_bot_signals_or_403(payload)
+    verify_bot_signals(payload)
     review = await create_review(
         db,
         name=payload.name,
@@ -152,7 +150,7 @@ async def post_public_plant_review(
     payload: ReviewCreate,
     db: AsyncSession = Depends(get_db),
 ) -> ReviewResponse:
-    verify_bot_signals_or_403(payload)
+    verify_bot_signals(payload)
     plant = await get_active_plant_or_404(db, slug)
     review = await create_review(
         db,

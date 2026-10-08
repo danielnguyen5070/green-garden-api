@@ -10,6 +10,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import ErrorCode, NotFoundError
 from app.features.plants.models import Plant
 from app.features.reviews.models import Review, ReviewStatus
 from app.shared.storefront_notify import notify_storefront
@@ -18,8 +19,11 @@ ReviewScope = Literal["shop", "plant"]
 """`shop` = website-wide reviews (no plant); `plant` = reviews of any plant."""
 
 
-class ReviewNotFoundError(Exception):
+class ReviewNotFoundError(NotFoundError):
     """Raised when a review id does not exist."""
+
+    error_code = ErrorCode.REVIEW_NOT_FOUND
+    message = "Review not found"
 
 
 @dataclass

@@ -9,16 +9,23 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
+from app.core.exceptions import ConflictError, ErrorCode, NotFoundError
 from app.features.categories.models import Category
 from app.shared.storefront_notify import notify_storefront
 
 
-class CategoryNotFoundError(Exception):
+class CategoryNotFoundError(NotFoundError):
     """Raised when a category id or slug does not exist."""
 
+    error_code = ErrorCode.CATEGORY_NOT_FOUND
+    message = "Category not found"
 
-class CategorySlugConflictError(Exception):
+
+class CategorySlugConflictError(ConflictError):
     """Raised when a category slug is already used."""
+
+    error_code = ErrorCode.CATEGORY_SLUG_TAKEN
+    message = "Category slug is already used"
 
 
 def _base_options() -> tuple[Any, ...]:

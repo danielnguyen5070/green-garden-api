@@ -46,7 +46,7 @@ async def test_login_incorrect_password(client: AsyncClient, active_admin: Admin
         json={"email": active_admin.email, "password": "wrong-password"},
     )
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid email or password"
+    assert response.json()["message"] == "Invalid email or password"
 
 
 @pytest.mark.asyncio
@@ -56,7 +56,7 @@ async def test_login_unknown_email(client: AsyncClient) -> None:
         json={"email": "nobody@example.com", "password": "whatever"},
     )
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid email or password"
+    assert response.json()["message"] == "Invalid email or password"
 
 
 @pytest.mark.asyncio
@@ -66,7 +66,7 @@ async def test_login_inactive_admin(client: AsyncClient, inactive_admin: Admin) 
         json={"email": inactive_admin.email, "password": "correct-password"},
     )
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid email or password"
+    assert response.json()["message"] == "Invalid email or password"
 
 
 @pytest.mark.asyncio

@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.features.customers.service import CustomerInactiveError
+from app.core.exceptions import ServiceUnavailableError
 from app.features.orders.models import ORDER_CURRENCY, Order, PaymentMethod
 from app.features.orders.schemas import (
     ShippingPolicyResponse,
@@ -28,13 +28,8 @@ from app.features.orders.schemas import (
 from app.features.orders.service import (
     FREE_SHIPPING_ABOVE,
     SHIPPING_FEE,
-    InsufficientStockError,
     OrderItemInput,
-    OrderNotFoundError,
     OrderSource,
-    OrderTotalTooLargeError,
-    PlantUnavailableError,
-    PotSizeUnavailableError,
     amount_to_free_shipping,
     create_order,
     get_order,
@@ -45,14 +40,11 @@ from app.features.payments.schemas import (
     StorefrontPaymentStatusResponse,
 )
 from app.features.payments.service import bank_transfer_info
-from app.features.plants.service import PlantNotFoundError, primary_image_url
-from app.shared.bot_protection.http import (
-    BOT_REJECTED_RESPONSES,
-    verify_bot_signals_or_403,
-)
+from app.features.plants.service import primary_image_url
+from app.shared.bot_protection.http import BOT_REJECTED_RESPONSES
 from app.shared.bot_protection.service import (
-    CheckoutRateLimitedError,
     check_checkout_phone_limit,
+    verify_bot_signals,
 )
 
 router = APIRouter(prefix="/storefront", tags=["storefront"])
@@ -213,59 +205,33 @@ async def post_storefront_order(
     payload: StorefrontOrderCreate,
     db: AsyncSession = Depends(get_db),
 ) -> StorefrontOrderResponse:
-    verify_bot_signals_or_403(payload)
+    verify_bot_signals(payload)
     if (
         payload.payment_method is PaymentMethod.BANK_TRANSFER
         and not get_settings().bank_transfer_enabled()
     ):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Bank transfer is not available right now",
-        )
-    try:
-        await check_checkout_phone_limit(db, payload.customer.phone)
-    except CheckoutRateLimitedError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many orders for this phone number. Please try again later.",
-            headers={"Retry-After": str(exc.retry_after)},
-        ) from exc
+        raise ServiceUnavailableError("Bank transfer is not available right now")
+    await check_checkout_phone_limit(db, payload.customer.phone)
 
-    try:
-        order = await create_order(
-            db,
-            customer_phone=payload.customer.phone,
-            customer_name=payload.customer.name,
-            customer_email=None,
-            shipping_address=payload.shipping_address,
-            note=payload.note,
-            items=[
-                OrderItemInput(
-                    plant_id=item.plant_id,
-                    quantity=item.quantity,
-                    pot_size_id=item.pot_size_id,
-                    pot_size=item.pot_size,
-                )
-                for item in payload.items
-            ],
-            source=OrderSource.STOREFRONT,
-            payment_method=payload.payment_method,
-        )
-    except (PlantNotFoundError, PotSizeUnavailableError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-    except (InsufficientStockError, PlantUnavailableError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-        ) from exc
-    except (CustomerInactiveError, OrderTotalTooLargeError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
+    order = await create_order(
+        db,
+        customer_phone=payload.customer.phone,
+        customer_name=payload.customer.name,
+        customer_email=None,
+        shipping_address=payload.shipping_address,
+        note=payload.note,
+        items=[
+            OrderItemInput(
+                plant_id=item.plant_id,
+                quantity=item.quantity,
+                pot_size_id=item.pot_size_id,
+                pot_size=item.pot_size,
+            )
+            for item in payload.items
+        ],
+        source=OrderSource.STOREFRONT,
+        payment_method=payload.payment_method,
+    )
 
     response = StorefrontOrderResponse.model_validate(order)
     response.payment = _payment_info(order)
@@ -288,13 +254,7 @@ async def get_storefront_order_payment(
     order_id: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> StorefrontPaymentStatusResponse:
-    try:
-        order = await get_order(db, order_id)
-    except OrderNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    order = await get_order(db, order_id)
     return StorefrontPaymentStatusResponse(
         order_id=order.id,
         order_number=order.order_number,

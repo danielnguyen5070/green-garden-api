@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -18,9 +18,6 @@ from app.features.admins.schemas import (
     AdminUpdate,
 )
 from app.features.admins.service import (
-    AdminNotFoundError,
-    EmailConflictError,
-    SelfDeactivationError,
     change_admin_password,
     create_admin_account,
     get_admin,
@@ -32,16 +29,6 @@ from app.features.auth.dependencies import get_current_admin
 from app.features.auth.schemas import MessageResponse
 
 router = APIRouter(prefix="/admins", tags=["admins"])
-
-
-def _map_admin_errors(exc: Exception) -> HTTPException:
-    if isinstance(exc, AdminNotFoundError):
-        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    if isinstance(exc, EmailConflictError):
-        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    if isinstance(exc, SelfDeactivationError):
-        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-    raise exc
 
 
 @router.get(
@@ -74,10 +61,7 @@ async def get_admin_by_id(
     db: AsyncSession = Depends(get_db),
     _: Admin = Depends(get_current_admin),
 ) -> AdminResponse:
-    try:
-        admin = await get_admin(db, admin_id)
-    except AdminNotFoundError as exc:
-        raise _map_admin_errors(exc) from exc
+    admin = await get_admin(db, admin_id)
     return AdminResponse.model_validate(admin)
 
 
@@ -92,15 +76,12 @@ async def create_admin(
     db: AsyncSession = Depends(get_db),
     _: Admin = Depends(get_current_admin),
 ) -> AdminResponse:
-    try:
-        admin = await create_admin_account(
-            db,
-            name=payload.name,
-            email=payload.email,
-            password=payload.password,
-        )
-    except EmailConflictError as exc:
-        raise _map_admin_errors(exc) from exc
+    admin = await create_admin_account(
+        db,
+        name=payload.name,
+        email=payload.email,
+        password=payload.password,
+    )
     return AdminResponse.model_validate(admin)
 
 
@@ -115,17 +96,14 @@ async def patch_admin(
     db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ) -> AdminResponse:
-    try:
-        admin = await update_admin(
-            db,
-            admin_id,
-            name=payload.name,
-            email=str(payload.email) if payload.email is not None else None,
-            is_active=payload.is_active,
-            current_admin_id=current_admin.id,
-        )
-    except (AdminNotFoundError, EmailConflictError, SelfDeactivationError) as exc:
-        raise _map_admin_errors(exc) from exc
+    admin = await update_admin(
+        db,
+        admin_id,
+        name=payload.name,
+        email=str(payload.email) if payload.email is not None else None,
+        is_active=payload.is_active,
+        current_admin_id=current_admin.id,
+    )
     return AdminResponse.model_validate(admin)
 
 
@@ -140,15 +118,12 @@ async def patch_admin_status(
     db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ) -> AdminResponse:
-    try:
-        admin = await update_admin_status(
-            db,
-            admin_id,
-            is_active=payload.is_active,
-            current_admin_id=current_admin.id,
-        )
-    except (AdminNotFoundError, SelfDeactivationError) as exc:
-        raise _map_admin_errors(exc) from exc
+    admin = await update_admin_status(
+        db,
+        admin_id,
+        is_active=payload.is_active,
+        current_admin_id=current_admin.id,
+    )
     return AdminResponse.model_validate(admin)
 
 
@@ -163,8 +138,5 @@ async def patch_admin_password(
     db: AsyncSession = Depends(get_db),
     _: Admin = Depends(get_current_admin),
 ) -> MessageResponse:
-    try:
-        await change_admin_password(db, admin_id, password=payload.password)
-    except AdminNotFoundError as exc:
-        raise _map_admin_errors(exc) from exc
+    await change_admin_password(db, admin_id, password=payload.password)
     return MessageResponse(message="Password updated successfully")

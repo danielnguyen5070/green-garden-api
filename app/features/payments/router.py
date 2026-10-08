@@ -12,12 +12,18 @@ import hmac
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Body, Depends, Header, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.error_handlers import sanitize_validation_errors
+from app.core.exceptions import (
+    RequestValidationAppError,
+    ServiceUnavailableError,
+    UnauthorizedError,
+)
 from app.features.payments.schemas import SePayWebhookPayload, SePayWebhookResponse
 from app.features.payments.service import process_sepay_webhook
 
@@ -31,18 +37,12 @@ _APIKEY_SCHEME = "apikey"
 def _verify_sepay_api_key(authorization: str | None) -> None:
     expected = get_settings().sepay_webhook_api_key
     if not expected:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="SePay webhook is not configured",
-        )
+        raise ServiceUnavailableError("SePay webhook is not configured")
     scheme, _, key = (authorization or "").strip().partition(" ")
     if scheme.lower() != _APIKEY_SCHEME or not hmac.compare_digest(
         key.strip().encode(), expected.encode()
     ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key",
-        )
+        raise UnauthorizedError("Invalid API key")
 
 
 @router.post(
@@ -74,9 +74,8 @@ async def post_sepay_webhook(
     try:
         payload = SePayWebhookPayload.model_validate(raw_payload)
     except ValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=exc.errors(include_url=False, include_context=False),
+        raise RequestValidationAppError(
+            error=sanitize_validation_errors(exc.errors(include_url=False)),
         ) from exc
 
     result = await process_sepay_webhook(db, payload, raw_payload)

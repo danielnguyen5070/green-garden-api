@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -18,8 +18,6 @@ from app.features.categories.schemas import (
     CategoryUpdate,
 )
 from app.features.categories.service import (
-    CategoryNotFoundError,
-    CategorySlugConflictError,
     create_category,
     get_category,
     list_categories,
@@ -38,14 +36,6 @@ _NOT_FOUND = {status.HTTP_404_NOT_FOUND: {"description": "Category not found"}}
 _CONFLICT = {
     status.HTTP_409_CONFLICT: {"description": "Slug already used by another category"}
 }
-
-
-def _map_category_errors(exc: Exception) -> HTTPException:
-    if isinstance(exc, CategoryNotFoundError):
-        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    if isinstance(exc, CategorySlugConflictError):
-        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    raise exc
 
 
 @router.get(
@@ -90,10 +80,7 @@ async def get_category_detail(
     category_id: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> CategoryResponse:
-    try:
-        category = await get_category(db, category_id)
-    except CategoryNotFoundError as exc:
-        raise _map_category_errors(exc) from exc
+    category = await get_category(db, category_id)
     return CategoryResponse.model_validate(category)
 
 
@@ -109,20 +96,17 @@ async def post_category(
     payload: CategoryCreate,
     db: AsyncSession = Depends(get_db),
 ) -> CategoryResponse:
-    try:
-        category = await create_category(
-            db,
-            name=payload.name,
-            name_vi=payload.name_vi,
-            slug=payload.slug,
-            description=payload.description,
-            description_vi=payload.description_vi,
-            image_url=str(payload.image_url) if payload.image_url is not None else None,
-            sort_order=payload.sort_order,
-            is_active=payload.is_active,
-        )
-    except CategorySlugConflictError as exc:
-        raise _map_category_errors(exc) from exc
+    category = await create_category(
+        db,
+        name=payload.name,
+        name_vi=payload.name_vi,
+        slug=payload.slug,
+        description=payload.description,
+        description_vi=payload.description_vi,
+        image_url=str(payload.image_url) if payload.image_url is not None else None,
+        sort_order=payload.sort_order,
+        is_active=payload.is_active,
+    )
     return CategoryResponse.model_validate(category)
 
 
@@ -141,25 +125,22 @@ async def patch_category(
     payload: CategoryUpdate,
     db: AsyncSession = Depends(get_db),
 ) -> CategoryResponse:
-    try:
-        category = await update_category(
-            db,
-            category_id,
-            name=payload.name,
-            name_vi=payload.name_vi,
-            slug=payload.slug,
-            description=payload.description,
-            description_vi=payload.description_vi,
-            image_url=str(payload.image_url) if payload.image_url is not None else None,
-            sort_order=payload.sort_order,
-            is_active=payload.is_active,
-            name_vi_provided="name_vi" in payload.model_fields_set,
-            description_provided="description" in payload.model_fields_set,
-            description_vi_provided="description_vi" in payload.model_fields_set,
-            image_url_provided="image_url" in payload.model_fields_set,
-        )
-    except (CategoryNotFoundError, CategorySlugConflictError) as exc:
-        raise _map_category_errors(exc) from exc
+    category = await update_category(
+        db,
+        category_id,
+        name=payload.name,
+        name_vi=payload.name_vi,
+        slug=payload.slug,
+        description=payload.description,
+        description_vi=payload.description_vi,
+        image_url=str(payload.image_url) if payload.image_url is not None else None,
+        sort_order=payload.sort_order,
+        is_active=payload.is_active,
+        name_vi_provided="name_vi" in payload.model_fields_set,
+        description_provided="description" in payload.model_fields_set,
+        description_vi_provided="description_vi" in payload.model_fields_set,
+        image_url_provided="image_url" in payload.model_fields_set,
+    )
     return CategoryResponse.model_validate(category)
 
 
@@ -178,12 +159,9 @@ async def patch_category_status(
     payload: CategoryStatusUpdate,
     db: AsyncSession = Depends(get_db),
 ) -> CategoryResponse:
-    try:
-        category = await set_category_status(
-            db,
-            category_id,
-            is_active=payload.is_active,
-        )
-    except CategoryNotFoundError as exc:
-        raise _map_category_errors(exc) from exc
+    category = await set_category_status(
+        db,
+        category_id,
+        is_active=payload.is_active,
+    )
     return CategoryResponse.model_validate(category)

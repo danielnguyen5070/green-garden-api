@@ -5,7 +5,7 @@ TODO(production): Rate-limit POST /login (per IP / email) before public exposure
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -46,17 +46,11 @@ async def login(
 
     Tokens are never returned in the JSON body.
     """
-    try:
-        admin = await authenticate_admin(
-            db,
-            email=payload.email,
-            password=payload.password,
-        )
-    except AuthenticationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
-        ) from exc
+    admin = await authenticate_admin(
+        db,
+        email=payload.email,
+        password=payload.password,
+    )
 
     access_token, refresh_token = issue_token_pair(admin)
     set_auth_cookies(response, access_token=access_token, refresh_token=refresh_token)
@@ -104,22 +98,13 @@ async def refresh(
     settings = get_settings()
     refresh_token = request.cookies.get(settings.auth_refresh_cookie_name)
     if not refresh_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-        )
+        raise AuthenticationError(log_detail="Missing refresh cookie")
 
-    try:
-        admin = await resolve_admin_from_token(
-            db,
-            token=refresh_token,
-            expected_type="refresh",
-        )
-    except AuthenticationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
-        ) from exc
+    admin = await resolve_admin_from_token(
+        db,
+        token=refresh_token,
+        expected_type="refresh",
+    )
 
     access_token = create_token(subject=admin.id, token_type="access")
     set_access_cookie(response, access_token=access_token)

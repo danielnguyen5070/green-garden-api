@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -22,18 +22,9 @@ async def get_current_admin(
     settings = get_settings()
     token = request.cookies.get(settings.auth_access_cookie_name)
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-        )
-    try:
-        return await resolve_admin_from_token(
-            db,
-            token=token,
-            expected_type="access",
-        )
-    except AuthenticationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc),
-        ) from exc
+        raise AuthenticationError(log_detail="Missing access cookie")
+    return await resolve_admin_from_token(
+        db,
+        token=token,
+        expected_type="access",
+    )

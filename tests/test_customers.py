@@ -187,9 +187,9 @@ async def test_create_customer_duplicate_phone(
         json=_customer_payload(phone=existing["phone"]),
     )
     assert response.status_code == 409
-    assert "phone" in response.json()["detail"]
+    assert "phone" in response.json()["message"]
     # Database internals never leak into the error message
-    assert "customers_phone_key" not in response.json()["detail"]
+    assert "customers_phone_key" not in response.json()["message"]
 
 
 @pytest.mark.asyncio
@@ -417,7 +417,7 @@ async def test_get_customer_not_found(
     await _login(client, active_admin)
     response = await client.get(f"{CUSTOMERS_PREFIX}/{uuid4()}")
     assert response.status_code == 404
-    assert response.json()["detail"] == "Customer not found"
+    assert response.json()["message"] == "Customer not found"
 
 
 @pytest.mark.asyncio

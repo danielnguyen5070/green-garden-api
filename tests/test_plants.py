@@ -275,7 +275,7 @@ async def test_create_plant_invalid_category(
     payload = _plant_payload(test_category, category_id=str(uuid4()))
     response = await client.post(PLANTS_PREFIX, json=payload)
     assert response.status_code == 404
-    assert response.json()["detail"] == "Category not found"
+    assert response.json()["message"] == "Category not found"
 
 
 @pytest.mark.asyncio
@@ -291,7 +291,7 @@ async def test_create_plant_duplicate_slug(
         json=_plant_payload(test_category, slug=existing["slug"]),
     )
     assert response.status_code == 409
-    assert "slug" in response.json()["detail"]
+    assert "slug" in response.json()["message"]
 
 
 @pytest.mark.asyncio
@@ -307,7 +307,7 @@ async def test_create_plant_duplicate_sku(
         json=_plant_payload(test_category, sku=existing["sku"]),
     )
     assert response.status_code == 409
-    assert "SKU" in response.json()["detail"]
+    assert "SKU" in response.json()["message"]
 
 
 @pytest.mark.asyncio
@@ -570,7 +570,7 @@ async def test_get_plant_not_found(
     await _login(client, active_admin)
     response = await client.get(f"{PLANTS_PREFIX}/{uuid4()}")
     assert response.status_code == 404
-    assert response.json()["detail"] == "Plant not found"
+    assert response.json()["message"] == "Plant not found"
 
 
 # --------------------------------------------------------------------------
@@ -647,7 +647,7 @@ async def test_update_plant_invalid_category(
         json={"category_id": str(uuid4())},
     )
     assert response.status_code == 404
-    assert response.json()["detail"] == "Category not found"
+    assert response.json()["message"] == "Category not found"
 
 
 @pytest.mark.asyncio

@@ -6,11 +6,12 @@ in `app.features.overview.service`; this module only handles HTTP concerns.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.exceptions import DatabaseError
 from app.features.auth.dependencies import get_current_admin
 from app.features.overview.schemas import OverviewResponse
 from app.features.overview.service import LOW_STOCK_THRESHOLD, build_overview
@@ -68,9 +69,5 @@ async def get_overview(db: AsyncSession = Depends(get_db)) -> OverviewResponse:
     try:
         stats = await build_overview(db)
     except SQLAlchemyError as exc:
-        # Never leak the driver/SQL details to the dashboard.
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to calculate the dashboard overview",
-        ) from exc
+        raise DatabaseError("Failed to calculate the dashboard overview") from exc
     return OverviewResponse.model_validate(stats)

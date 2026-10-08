@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -15,7 +15,6 @@ from app.features.notifications.schemas import (
     NotificationResponse,
 )
 from app.features.notifications.service import (
-    NotificationNotFoundError,
     list_notifications,
     mark_all_notifications_read,
     mark_notification_read,
@@ -83,11 +82,5 @@ async def patch_notification_read(
     notification_id: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> NotificationResponse:
-    try:
-        notification = await mark_notification_read(db, notification_id)
-    except NotificationNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    notification = await mark_notification_read(db, notification_id)
     return NotificationResponse.model_validate(notification)

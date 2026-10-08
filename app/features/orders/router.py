@@ -9,12 +9,11 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.features.auth.dependencies import get_current_admin
-from app.features.customers.service import CustomerInactiveError
 from app.features.orders.models import OrderStatus
 from app.features.orders.schemas import (
     OrderCreate,
@@ -23,18 +22,12 @@ from app.features.orders.schemas import (
     OrderStatusUpdate,
 )
 from app.features.orders.service import (
-    InsufficientStockError,
-    InvalidStatusTransitionError,
     OrderItemInput,
-    OrderNotFoundError,
-    OrderTotalTooLargeError,
-    PlantUnavailableError,
     create_order,
     get_order,
     list_orders,
     update_order_status,
 )
-from app.features.plants.service import PlantNotFoundError
 
 router = APIRouter(
     prefix="/orders",
@@ -43,32 +36,21 @@ router = APIRouter(
     responses={status.HTTP_401_UNAUTHORIZED: {"description": "Not authenticated"}},
 )
 
-_NOT_FOUND = {status.HTTP_404_NOT_FOUND: {"description": "Order or plant not found"}}
+_NOT_FOUND = {
+    status.HTTP_404_NOT_FOUND: {"description": "Order, plant or pot size not found"}
+}
 _BAD_REQUEST = {
     status.HTTP_400_BAD_REQUEST: {
         "description": (
-            "Insufficient stock, unavailable plant or pot size, inactive "
-            "customer, or invalid status transition"
+            "Inactive customer, order total too large, or invalid status transition"
         )
     }
 }
-
-
-def _map_order_errors(exc: Exception) -> HTTPException:
-    if isinstance(exc, (OrderNotFoundError, PlantNotFoundError)):
-        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    if isinstance(
-        exc,
-        (
-            InsufficientStockError,
-            PlantUnavailableError,
-            CustomerInactiveError,
-            InvalidStatusTransitionError,
-            OrderTotalTooLargeError,
-        ),
-    ):
-        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-    raise exc
+_CONFLICT = {
+    status.HTTP_409_CONFLICT: {
+        "description": "Insufficient stock or the plant is not available"
+    }
+}
 
 
 @router.get(
@@ -128,10 +110,7 @@ async def get_order_detail(
     order_id: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> OrderResponse:
-    try:
-        order = await get_order(db, order_id)
-    except OrderNotFoundError as exc:
-        raise _map_order_errors(exc) from exc
+    order = await get_order(db, order_id)
     return OrderResponse.model_validate(order)
 
 
@@ -151,42 +130,33 @@ async def get_order_detail(
         "either, the plant's first active pot size is used. Stock is verified "
         "and deducted in the same transaction; the order starts as `pending`."
     ),
-    responses={**_NOT_FOUND, **_BAD_REQUEST},
+    responses={**_NOT_FOUND, **_BAD_REQUEST, **_CONFLICT},
 )
 async def post_order(
     payload: OrderCreate,
     db: AsyncSession = Depends(get_db),
 ) -> OrderResponse:
-    try:
-        order = await create_order(
-            db,
-            customer_phone=payload.customer.phone,
-            customer_name=payload.customer.name,
-            customer_email=(
-                str(payload.customer.email)
-                if payload.customer.email is not None
-                else None
-            ),
-            shipping_address=payload.shipping_address,
-            note=payload.note,
-            items=[
-                OrderItemInput(
-                    plant_id=item.plant_id,
-                    quantity=item.quantity,
-                    pot_size_id=item.pot_size_id,
-                    pot_size=item.pot_size,
-                )
-                for item in payload.items
-            ],
-        )
-    except (
-        PlantNotFoundError,
-        PlantUnavailableError,
-        InsufficientStockError,
-        CustomerInactiveError,
-        OrderTotalTooLargeError,
-    ) as exc:
-        raise _map_order_errors(exc) from exc
+    order = await create_order(
+        db,
+        customer_phone=payload.customer.phone,
+        customer_name=payload.customer.name,
+        customer_email=(
+            str(payload.customer.email)
+            if payload.customer.email is not None
+            else None
+        ),
+        shipping_address=payload.shipping_address,
+        note=payload.note,
+        items=[
+            OrderItemInput(
+                plant_id=item.plant_id,
+                quantity=item.quantity,
+                pot_size_id=item.pot_size_id,
+                pot_size=item.pot_size,
+            )
+            for item in payload.items
+        ],
+    )
     return OrderResponse.model_validate(order)
 
 
@@ -208,8 +178,5 @@ async def patch_order_status(
     payload: OrderStatusUpdate,
     db: AsyncSession = Depends(get_db),
 ) -> OrderResponse:
-    try:
-        order = await update_order_status(db, order_id, status=payload.status)
-    except (OrderNotFoundError, InvalidStatusTransitionError) as exc:
-        raise _map_order_errors(exc) from exc
+    order = await update_order_status(db, order_id, status=payload.status)
     return OrderResponse.model_validate(order)

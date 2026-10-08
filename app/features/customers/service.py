@@ -14,19 +14,29 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
+from app.core.exceptions import BadRequestError, ConflictError, ErrorCode, NotFoundError
 from app.features.customers.models import Customer
 
 
-class CustomerNotFoundError(Exception):
+class CustomerNotFoundError(NotFoundError):
     """Raised when a customer id does not exist."""
 
+    error_code = ErrorCode.CUSTOMER_NOT_FOUND
+    message = "Customer not found"
 
-class CustomerPhoneConflictError(Exception):
+
+class CustomerPhoneConflictError(ConflictError):
     """Raised when a phone number is already used by another customer."""
 
+    error_code = ErrorCode.CUSTOMER_PHONE_TAKEN
+    message = "Phone is already used by another customer"
 
-class CustomerInactiveError(Exception):
+
+class CustomerInactiveError(BadRequestError):
     """Raised when a deactivated customer is used for a new order."""
+
+    error_code = ErrorCode.CUSTOMER_INACTIVE
+    message = "Customer is inactive"
 
 
 def _base_options() -> tuple[Any, ...]:

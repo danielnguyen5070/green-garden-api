@@ -10,9 +10,10 @@ from sqlalchemy import Select, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
 
+from app.core.exceptions import ConflictError, ErrorCode, NotFoundError
 from app.core.text import escape_ilike_pattern, normalize_search_query
 from app.features.categories.models import Category
-from app.features.categories.service import CategoryNotFoundError, get_category
+from app.features.categories.service import get_category
 from app.features.knowledge.plant_indexer import sync_plant_knowledge_safe
 from app.features.plants.models import (
     Plant,
@@ -41,24 +42,39 @@ _SORT_COLUMNS = {
 }
 
 
-class PlantNotFoundError(Exception):
+class PlantNotFoundError(NotFoundError):
     """Raised when a plant id or slug does not exist."""
 
+    error_code = ErrorCode.PLANT_NOT_FOUND
+    message = "Plant not found"
 
-class PlantImageNotFoundError(Exception):
+
+class PlantImageNotFoundError(NotFoundError):
     """Raised when an image does not exist or belongs to another plant."""
 
+    error_code = ErrorCode.PLANT_IMAGE_NOT_FOUND
+    message = "Plant image not found"
 
-class PlantPotSizeNotFoundError(Exception):
+
+class PlantPotSizeNotFoundError(NotFoundError):
     """Raised when a pot size does not exist or belongs to another plant."""
 
+    error_code = ErrorCode.PLANT_POT_SIZE_NOT_FOUND
+    message = "Pot size not found"
 
-class SlugConflictError(Exception):
+
+class SlugConflictError(ConflictError):
     """Raised when a plant slug is already used."""
 
+    error_code = ErrorCode.PLANT_SLUG_TAKEN
+    message = "Plant slug is already used"
 
-class SkuConflictError(Exception):
+
+class SkuConflictError(ConflictError):
     """Raised when a plant SKU is already used."""
+
+    error_code = ErrorCode.PLANT_SKU_TAKEN
+    message = "Plant SKU is already used"
 
 
 def _detail_options() -> tuple[Any, ...]:

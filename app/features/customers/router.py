@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -17,8 +17,6 @@ from app.features.customers.schemas import (
     CustomerUpdate,
 )
 from app.features.customers.service import (
-    CustomerNotFoundError,
-    CustomerPhoneConflictError,
     create_customer,
     get_customer,
     list_customers,
@@ -37,14 +35,6 @@ _NOT_FOUND = {status.HTTP_404_NOT_FOUND: {"description": "Customer not found"}}
 _CONFLICT = {
     status.HTTP_409_CONFLICT: {"description": "Phone already used by another customer"}
 }
-
-
-def _map_customer_errors(exc: Exception) -> HTTPException:
-    if isinstance(exc, CustomerNotFoundError):
-        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    if isinstance(exc, CustomerPhoneConflictError):
-        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    raise exc
 
 
 @router.get(
@@ -92,10 +82,7 @@ async def get_customer_detail(
     customer_id: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> CustomerResponse:
-    try:
-        customer = await get_customer(db, customer_id)
-    except CustomerNotFoundError as exc:
-        raise _map_customer_errors(exc) from exc
+    customer = await get_customer(db, customer_id)
     return CustomerResponse.model_validate(customer)
 
 
@@ -114,15 +101,12 @@ async def post_customer(
     payload: CustomerCreate,
     db: AsyncSession = Depends(get_db),
 ) -> CustomerResponse:
-    try:
-        customer = await create_customer(
-            db,
-            phone=payload.phone,
-            name=payload.name,
-            email=str(payload.email) if payload.email is not None else None,
-        )
-    except CustomerPhoneConflictError as exc:
-        raise _map_customer_errors(exc) from exc
+    customer = await create_customer(
+        db,
+        phone=payload.phone,
+        name=payload.name,
+        email=str(payload.email) if payload.email is not None else None,
+    )
     return CustomerResponse.model_validate(customer)
 
 
@@ -141,17 +125,14 @@ async def patch_customer(
     payload: CustomerUpdate,
     db: AsyncSession = Depends(get_db),
 ) -> CustomerResponse:
-    try:
-        customer = await update_customer(
-            db,
-            customer_id,
-            phone=payload.phone,
-            name=payload.name,
-            email=str(payload.email) if payload.email is not None else None,
-            email_provided="email" in payload.model_fields_set,
-        )
-    except (CustomerNotFoundError, CustomerPhoneConflictError) as exc:
-        raise _map_customer_errors(exc) from exc
+    customer = await update_customer(
+        db,
+        customer_id,
+        phone=payload.phone,
+        name=payload.name,
+        email=str(payload.email) if payload.email is not None else None,
+        email_provided="email" in payload.model_fields_set,
+    )
     return CustomerResponse.model_validate(customer)
 
 
@@ -170,12 +151,9 @@ async def patch_customer_status(
     payload: CustomerStatusUpdate,
     db: AsyncSession = Depends(get_db),
 ) -> CustomerResponse:
-    try:
-        customer = await set_customer_status(
-            db,
-            customer_id,
-            is_active=payload.is_active,
-        )
-    except CustomerNotFoundError as exc:
-        raise _map_customer_errors(exc) from exc
+    customer = await set_customer_status(
+        db,
+        customer_id,
+        is_active=payload.is_active,
+    )
     return CustomerResponse.model_validate(customer)

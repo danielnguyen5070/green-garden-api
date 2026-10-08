@@ -14,6 +14,7 @@ from typing import Literal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ErrorCode, UnauthorizedError
 from app.core.security import (
     create_token,
     decode_token,
@@ -23,8 +24,18 @@ from app.core.security import (
 from app.features.admins.models import Admin
 
 
-class AuthenticationError(Exception):
+class AuthenticationError(UnauthorizedError):
     """Raised when authentication or token validation fails."""
+
+    error_code = ErrorCode.INVALID_TOKEN
+    message = "Could not validate credentials"
+
+
+class InvalidCredentialsError(AuthenticationError):
+    """Raised when the login email/password pair is wrong or the admin is inactive."""
+
+    error_code = ErrorCode.INVALID_CREDENTIALS
+    message = "Invalid email or password"
 
 
 async def get_admin_by_email(session: AsyncSession, email: str) -> Admin | None:
@@ -52,9 +63,9 @@ async def authenticate_admin(
     """
     admin = await get_admin_by_email(session, email)
     if admin is None or not admin.is_active:
-        raise AuthenticationError("Invalid email or password")
+        raise InvalidCredentialsError()
     if not verify_password(password, admin.password_hash):
-        raise AuthenticationError("Invalid email or password")
+        raise InvalidCredentialsError()
     return admin
 
 
@@ -74,11 +85,11 @@ async def resolve_admin_from_token(
         payload = decode_token(token, expected_type=expected_type)
         admin_id = uuid.UUID(str(payload["sub"]))
     except Exception as exc:
-        raise AuthenticationError("Could not validate credentials") from exc
+        raise AuthenticationError(log_detail=f"Token rejected: {type(exc).__name__}") from exc
 
     admin = await get_admin_by_id(session, admin_id)
     if admin is None or not admin.is_active:
-        raise AuthenticationError("Could not validate credentials")
+        raise AuthenticationError(log_detail="Token subject missing or inactive")
     return admin
 
 

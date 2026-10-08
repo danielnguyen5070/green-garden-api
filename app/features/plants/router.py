@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -25,12 +25,6 @@ from app.features.plants.schemas import (
     PlantUpdate,
 )
 from app.features.plants.service import (
-    CategoryNotFoundError,
-    PlantImageNotFoundError,
-    PlantNotFoundError,
-    PlantPotSizeNotFoundError,
-    SkuConflictError,
-    SlugConflictError,
     SortField,
     SortOrder,
     add_plant_image,
@@ -63,22 +57,6 @@ _NOT_FOUND = {
 _CONFLICT = {
     status.HTTP_409_CONFLICT: {"description": "Slug or SKU already used by another plant"}
 }
-
-
-def _map_plant_errors(exc: Exception) -> HTTPException:
-    if isinstance(
-        exc,
-        (
-            PlantNotFoundError,
-            CategoryNotFoundError,
-            PlantImageNotFoundError,
-            PlantPotSizeNotFoundError,
-        ),
-    ):
-        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    if isinstance(exc, (SlugConflictError, SkuConflictError)):
-        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    raise exc
 
 
 @router.get(
@@ -132,10 +110,7 @@ async def get_plant_detail(
     db: AsyncSession = Depends(get_db),
 ) -> PlantResponse:
     """Full plant detail with category, images and pot sizes."""
-    try:
-        plant = await get_plant(db, plant_id)
-    except PlantNotFoundError as exc:
-        raise _map_plant_errors(exc) from exc
+    plant = await get_plant(db, plant_id)
     return PlantResponse.model_validate(plant)
 
 
@@ -151,39 +126,36 @@ async def post_plant(
     db: AsyncSession = Depends(get_db),
 ) -> PlantResponse:
     """Create a plant. Slug and SKU must be unique; category must exist."""
-    try:
-        plant = await create_plant(
-            db,
-            category_id=payload.category_id,
-            name=payload.name,
-            name_vi=payload.name_vi,
-            slug=payload.slug,
-            description=payload.description,
-            description_vi=payload.description_vi,
-            long_description=payload.long_description,
-            long_description_vi=payload.long_description_vi,
-            og_image_url=(
-                str(payload.og_image_url) if payload.og_image_url is not None else None
-            ),
-            price=payload.price,
-            price_vi=payload.price_vi,
-            stock=payload.stock,
-            sku=payload.sku,
-            is_featured=payload.is_featured,
-            is_active=payload.is_active,
-            plant_type=payload.plant_type,
-            difficulty=payload.difficulty,
-            growth_rate=payload.growth_rate,
-            sunlight=payload.sunlight,
-            watering=payload.watering,
-            space_requirement=payload.space_requirement,
-            indoor_suitable=payload.indoor_suitable,
-            outdoor_suitable=payload.outdoor_suitable,
-            pet_safe=payload.pet_safe,
-            beginner_friendly=payload.beginner_friendly,
-        )
-    except (CategoryNotFoundError, SlugConflictError, SkuConflictError) as exc:
-        raise _map_plant_errors(exc) from exc
+    plant = await create_plant(
+        db,
+        category_id=payload.category_id,
+        name=payload.name,
+        name_vi=payload.name_vi,
+        slug=payload.slug,
+        description=payload.description,
+        description_vi=payload.description_vi,
+        long_description=payload.long_description,
+        long_description_vi=payload.long_description_vi,
+        og_image_url=(
+            str(payload.og_image_url) if payload.og_image_url is not None else None
+        ),
+        price=payload.price,
+        price_vi=payload.price_vi,
+        stock=payload.stock,
+        sku=payload.sku,
+        is_featured=payload.is_featured,
+        is_active=payload.is_active,
+        plant_type=payload.plant_type,
+        difficulty=payload.difficulty,
+        growth_rate=payload.growth_rate,
+        sunlight=payload.sunlight,
+        watering=payload.watering,
+        space_requirement=payload.space_requirement,
+        indoor_suitable=payload.indoor_suitable,
+        outdoor_suitable=payload.outdoor_suitable,
+        pet_safe=payload.pet_safe,
+        beginner_friendly=payload.beginner_friendly,
+    )
     return PlantResponse.model_validate(plant)
 
 
@@ -199,68 +171,60 @@ async def patch_plant(
     db: AsyncSession = Depends(get_db),
 ) -> PlantResponse:
     """Partial update. Slug/SKU uniqueness and category existence are validated."""
-    try:
-        plant = await update_plant(
-            db,
-            plant_id,
-            category_id=payload.category_id,
-            name=payload.name,
-            name_vi=payload.name_vi,
-            slug=payload.slug,
-            description=payload.description,
-            description_vi=payload.description_vi,
-            long_description=payload.long_description,
-            long_description_vi=payload.long_description_vi,
-            og_image_url=(
-                str(payload.og_image_url) if payload.og_image_url is not None else None
-            ),
-            price=payload.price,
-            price_vi=payload.price_vi,
-            stock=payload.stock,
-            sku=payload.sku,
-            is_featured=payload.is_featured,
-            is_active=payload.is_active,
-            plant_type=payload.plant_type,
-            difficulty=payload.difficulty,
-            growth_rate=payload.growth_rate,
-            sunlight=payload.sunlight,
-            watering=payload.watering,
-            space_requirement=payload.space_requirement,
-            indoor_suitable=payload.indoor_suitable,
-            outdoor_suitable=payload.outdoor_suitable,
-            pet_safe=payload.pet_safe,
-            beginner_friendly=payload.beginner_friendly,
-            name_vi_provided="name_vi" in payload.model_fields_set,
-            description_provided="description" in payload.model_fields_set,
-            description_vi_provided="description_vi" in payload.model_fields_set,
-            long_description_provided="long_description" in payload.model_fields_set,
-            long_description_vi_provided=(
-                "long_description_vi" in payload.model_fields_set
-            ),
-            og_image_url_provided="og_image_url" in payload.model_fields_set,
-            price_vi_provided="price_vi" in payload.model_fields_set,
-            plant_type_provided="plant_type" in payload.model_fields_set,
-            difficulty_provided="difficulty" in payload.model_fields_set,
-            growth_rate_provided="growth_rate" in payload.model_fields_set,
-            sunlight_provided="sunlight" in payload.model_fields_set,
-            watering_provided="watering" in payload.model_fields_set,
-            space_requirement_provided=(
-                "space_requirement" in payload.model_fields_set
-            ),
-            indoor_suitable_provided="indoor_suitable" in payload.model_fields_set,
-            outdoor_suitable_provided="outdoor_suitable" in payload.model_fields_set,
-            pet_safe_provided="pet_safe" in payload.model_fields_set,
-            beginner_friendly_provided=(
-                "beginner_friendly" in payload.model_fields_set
-            ),
-        )
-    except (
-        PlantNotFoundError,
-        CategoryNotFoundError,
-        SlugConflictError,
-        SkuConflictError,
-    ) as exc:
-        raise _map_plant_errors(exc) from exc
+    plant = await update_plant(
+        db,
+        plant_id,
+        category_id=payload.category_id,
+        name=payload.name,
+        name_vi=payload.name_vi,
+        slug=payload.slug,
+        description=payload.description,
+        description_vi=payload.description_vi,
+        long_description=payload.long_description,
+        long_description_vi=payload.long_description_vi,
+        og_image_url=(
+            str(payload.og_image_url) if payload.og_image_url is not None else None
+        ),
+        price=payload.price,
+        price_vi=payload.price_vi,
+        stock=payload.stock,
+        sku=payload.sku,
+        is_featured=payload.is_featured,
+        is_active=payload.is_active,
+        plant_type=payload.plant_type,
+        difficulty=payload.difficulty,
+        growth_rate=payload.growth_rate,
+        sunlight=payload.sunlight,
+        watering=payload.watering,
+        space_requirement=payload.space_requirement,
+        indoor_suitable=payload.indoor_suitable,
+        outdoor_suitable=payload.outdoor_suitable,
+        pet_safe=payload.pet_safe,
+        beginner_friendly=payload.beginner_friendly,
+        name_vi_provided="name_vi" in payload.model_fields_set,
+        description_provided="description" in payload.model_fields_set,
+        description_vi_provided="description_vi" in payload.model_fields_set,
+        long_description_provided="long_description" in payload.model_fields_set,
+        long_description_vi_provided=(
+            "long_description_vi" in payload.model_fields_set
+        ),
+        og_image_url_provided="og_image_url" in payload.model_fields_set,
+        price_vi_provided="price_vi" in payload.model_fields_set,
+        plant_type_provided="plant_type" in payload.model_fields_set,
+        difficulty_provided="difficulty" in payload.model_fields_set,
+        growth_rate_provided="growth_rate" in payload.model_fields_set,
+        sunlight_provided="sunlight" in payload.model_fields_set,
+        watering_provided="watering" in payload.model_fields_set,
+        space_requirement_provided=(
+            "space_requirement" in payload.model_fields_set
+        ),
+        indoor_suitable_provided="indoor_suitable" in payload.model_fields_set,
+        outdoor_suitable_provided="outdoor_suitable" in payload.model_fields_set,
+        pet_safe_provided="pet_safe" in payload.model_fields_set,
+        beginner_friendly_provided=(
+            "beginner_friendly" in payload.model_fields_set
+        ),
+    )
     return PlantResponse.model_validate(plant)
 
 
@@ -276,10 +240,7 @@ async def patch_plant_status(
     db: AsyncSession = Depends(get_db),
 ) -> PlantResponse:
     """Soft enable/disable a plant. Inactive plants are hidden from the storefront."""
-    try:
-        plant = await set_plant_status(db, plant_id, is_active=payload.is_active)
-    except PlantNotFoundError as exc:
-        raise _map_plant_errors(exc) from exc
+    plant = await set_plant_status(db, plant_id, is_active=payload.is_active)
     return PlantResponse.model_validate(plant)
 
 
@@ -294,10 +255,7 @@ async def get_plant_images(
     db: AsyncSession = Depends(get_db),
 ) -> list[PlantImageResponse]:
     """Media URLs for a plant, ordered by `sort_order`."""
-    try:
-        images = await list_plant_images(db, plant_id)
-    except PlantNotFoundError as exc:
-        raise _map_plant_errors(exc) from exc
+    images = await list_plant_images(db, plant_id)
     return [PlantImageResponse.model_validate(image) for image in images]
 
 
@@ -314,17 +272,14 @@ async def post_plant_image(
     db: AsyncSession = Depends(get_db),
 ) -> PlantImageResponse:
     """Attach an external media URL. No binary upload is performed."""
-    try:
-        image = await add_plant_image(
-            db,
-            plant_id,
-            url=str(payload.url),
-            type=payload.type,
-            alt_text=payload.alt_text,
-            sort_order=payload.sort_order,
-        )
-    except PlantNotFoundError as exc:
-        raise _map_plant_errors(exc) from exc
+    image = await add_plant_image(
+        db,
+        plant_id,
+        url=str(payload.url),
+        type=payload.type,
+        alt_text=payload.alt_text,
+        sort_order=payload.sort_order,
+    )
     return PlantImageResponse.model_validate(image)
 
 
@@ -341,19 +296,16 @@ async def patch_plant_image(
     db: AsyncSession = Depends(get_db),
 ) -> PlantImageResponse:
     """Partial update of an image that must belong to the given plant."""
-    try:
-        image = await update_plant_image(
-            db,
-            plant_id,
-            image_id,
-            url=str(payload.url) if payload.url is not None else None,
-            type=payload.type,
-            alt_text=payload.alt_text,
-            sort_order=payload.sort_order,
-            alt_text_provided="alt_text" in payload.model_fields_set,
-        )
-    except (PlantNotFoundError, PlantImageNotFoundError) as exc:
-        raise _map_plant_errors(exc) from exc
+    image = await update_plant_image(
+        db,
+        plant_id,
+        image_id,
+        url=str(payload.url) if payload.url is not None else None,
+        type=payload.type,
+        alt_text=payload.alt_text,
+        sort_order=payload.sort_order,
+        alt_text_provided="alt_text" in payload.model_fields_set,
+    )
     return PlantImageResponse.model_validate(image)
 
 
@@ -369,10 +321,7 @@ async def remove_plant_image(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Delete only the image record; the plant is untouched."""
-    try:
-        await delete_plant_image(db, plant_id, image_id)
-    except (PlantNotFoundError, PlantImageNotFoundError) as exc:
-        raise _map_plant_errors(exc) from exc
+    await delete_plant_image(db, plant_id, image_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -387,10 +336,7 @@ async def get_plant_pot_sizes(
     db: AsyncSession = Depends(get_db),
 ) -> list[PlantPotSizeResponse]:
     """Pot size variants for a plant, ordered by `sort_order`."""
-    try:
-        pot_sizes = await list_plant_pot_sizes(db, plant_id)
-    except PlantNotFoundError as exc:
-        raise _map_plant_errors(exc) from exc
+    pot_sizes = await list_plant_pot_sizes(db, plant_id)
     return [PlantPotSizeResponse.model_validate(size) for size in pot_sizes]
 
 
@@ -407,18 +353,15 @@ async def post_plant_pot_size(
     db: AsyncSession = Depends(get_db),
 ) -> PlantPotSizeResponse:
     """Create a pot size variant with a non-negative price adjustment."""
-    try:
-        pot_size = await add_plant_pot_size(
-            db,
-            plant_id,
-            name=payload.name,
-            price_adjustment=payload.price_adjustment,
-            price_adjustment_vi=payload.price_adjustment_vi,
-            sort_order=payload.sort_order,
-            is_active=payload.is_active,
-        )
-    except PlantNotFoundError as exc:
-        raise _map_plant_errors(exc) from exc
+    pot_size = await add_plant_pot_size(
+        db,
+        plant_id,
+        name=payload.name,
+        price_adjustment=payload.price_adjustment,
+        price_adjustment_vi=payload.price_adjustment_vi,
+        sort_order=payload.sort_order,
+        is_active=payload.is_active,
+    )
     return PlantPotSizeResponse.model_validate(pot_size)
 
 
@@ -435,22 +378,19 @@ async def patch_plant_pot_size(
     db: AsyncSession = Depends(get_db),
 ) -> PlantPotSizeResponse:
     """Partial update of a pot size that must belong to the given plant."""
-    try:
-        pot_size = await update_plant_pot_size(
-            db,
-            plant_id,
-            size_id,
-            name=payload.name,
-            price_adjustment=payload.price_adjustment,
-            price_adjustment_vi=payload.price_adjustment_vi,
-            sort_order=payload.sort_order,
-            is_active=payload.is_active,
-            price_adjustment_vi_provided=(
-                "price_adjustment_vi" in payload.model_fields_set
-            ),
-        )
-    except (PlantNotFoundError, PlantPotSizeNotFoundError) as exc:
-        raise _map_plant_errors(exc) from exc
+    pot_size = await update_plant_pot_size(
+        db,
+        plant_id,
+        size_id,
+        name=payload.name,
+        price_adjustment=payload.price_adjustment,
+        price_adjustment_vi=payload.price_adjustment_vi,
+        sort_order=payload.sort_order,
+        is_active=payload.is_active,
+        price_adjustment_vi_provided=(
+            "price_adjustment_vi" in payload.model_fields_set
+        ),
+    )
     return PlantPotSizeResponse.model_validate(pot_size)
 
 
@@ -466,8 +406,5 @@ async def remove_plant_pot_size(
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Delete only the pot size record; the plant is untouched."""
-    try:
-        await delete_plant_pot_size(db, plant_id, size_id)
-    except (PlantNotFoundError, PlantPotSizeNotFoundError) as exc:
-        raise _map_plant_errors(exc) from exc
+    await delete_plant_pot_size(db, plant_id, size_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

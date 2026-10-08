@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from fastapi.responses import StreamingResponse
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
+from app.core.exceptions import ServiceUnavailableError
 from app.core.sse import sse_chunk, sse_done, sse_error
 from app.features.chat.deepseek import (
     DeepSeekNotConfiguredError,
@@ -72,10 +73,7 @@ async def stream_chat(payload: ChatStreamRequest) -> StreamingResponse:
     settings = get_settings()
     service = get_deepseek_service(settings)
     if not service.is_configured:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Chat service is not configured",
-        )
+        raise ServiceUnavailableError("Chat service is not configured")
 
     return StreamingResponse(
         _stream_chat_events(payload=payload, service=service),

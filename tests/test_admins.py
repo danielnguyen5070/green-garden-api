@@ -260,7 +260,7 @@ async def test_cannot_deactivate_self(
         json={"is_active": False},
     )
     assert response.status_code == 400
-    assert "own account" in response.json()["detail"].lower()
+    assert "own account" in response.json()["message"].lower()
 
 
 @pytest.mark.asyncio

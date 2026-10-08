@@ -7,11 +7,15 @@ import uuid
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ErrorCode, NotFoundError
 from app.features.notifications.models import Notification, NotificationType
 
 
-class NotificationNotFoundError(Exception):
+class NotificationNotFoundError(NotFoundError):
     """Raised when a notification id does not exist."""
+
+    error_code = ErrorCode.NOTIFICATION_NOT_FOUND
+    message = "Notification not found"
 
 
 def queue_new_order_notification(

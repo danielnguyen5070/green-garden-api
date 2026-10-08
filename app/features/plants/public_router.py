@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -22,7 +22,6 @@ from app.features.plants.schemas import (
     PublicPotSizeSummary,
 )
 from app.features.plants.service import (
-    PlantNotFoundError,
     SearchLocale,
     SortField,
     SortOrder,
@@ -160,13 +159,7 @@ async def get_public_plant_by_slug(
     db: AsyncSession = Depends(get_db),
 ) -> PublicPlantDetail:
     """Storefront detail by slug. Returns 404 for unknown or inactive plants."""
-    try:
-        plant = await get_plant_by_slug(db, normalize_slug(slug), active_only=True)
-    except PlantNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    plant = await get_plant_by_slug(db, normalize_slug(slug), active_only=True)
 
     return PublicPlantDetail(
         id=plant.id,

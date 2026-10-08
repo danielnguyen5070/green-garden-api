@@ -181,7 +181,7 @@ async def test_create_category_duplicate_slug(
         json=_category_payload(slug=existing["slug"]),
     )
     assert response.status_code == 409
-    assert "slug" in response.json()["detail"]
+    assert "slug" in response.json()["message"]
 
 
 @pytest.mark.asyncio
@@ -419,7 +419,7 @@ async def test_get_category_not_found(
     await _login(client, active_admin)
     response = await client.get(f"{CATEGORIES_PREFIX}/{uuid4()}")
     assert response.status_code == 404
-    assert response.json()["detail"] == "Category not found"
+    assert response.json()["message"] == "Category not found"
 
 
 @pytest.mark.asyncio

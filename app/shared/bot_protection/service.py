@@ -20,6 +20,7 @@ from datetime import timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ErrorCode, ForbiddenError, RateLimitedError
 from app.core.text import normalize_vn_phone
 from app.features.customers.models import Customer
 from app.features.orders.models import Order
@@ -30,15 +31,28 @@ CHECKOUT_PHONE_LIMIT = 3
 CHECKOUT_PHONE_WINDOW = timedelta(hours=1)
 
 
-class BotSignalRejectedError(Exception):
-    """Raised when the honeypot is filled or the form was submitted too fast."""
+class BotSignalRejectedError(ForbiddenError):
+    """
+    Raised when the honeypot is filled or the form was submitted too fast.
+
+    The client only ever sees the generic message; the reason is logged.
+    """
+
+    error_code = ErrorCode.SUBMISSION_REJECTED
+    message = "Submission rejected"
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(log_detail=reason)
+        self.reason = reason
 
 
-class CheckoutRateLimitedError(Exception):
+class CheckoutRateLimitedError(RateLimitedError):
     """Raised when a phone number has placed too many orders recently."""
 
+    message = "Too many orders for this phone number. Please try again later."
+
     def __init__(self, retry_after: int) -> None:
-        super().__init__("Too many orders for this phone number")
+        super().__init__(headers={"Retry-After": str(retry_after)})
         self.retry_after = retry_after
 
 

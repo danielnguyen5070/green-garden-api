@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 
+from app.core.error_handlers import ErrorResponse
 from app.db import registry  # noqa: F401
 from app.features.admins import router as admins_router
 from app.features.auth import router as auth_router
@@ -17,7 +18,19 @@ from app.features.plants import router as plants_router
 from app.features.reviews import public_router as reviews_public_router
 from app.features.reviews import router as reviews_router
 
-api_router = APIRouter(prefix="/api/v1")
+api_router = APIRouter(
+    prefix="/api/v1",
+    responses={
+        status.HTTP_422_UNPROCESSABLE_ENTITY: {
+            "model": ErrorResponse,
+            "description": "Validation error",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": ErrorResponse,
+            "description": "Internal server error",
+        },
+    },
+)
 api_router.include_router(auth_router.router)
 api_router.include_router(admins_router.router)
 api_router.include_router(categories_router.router)

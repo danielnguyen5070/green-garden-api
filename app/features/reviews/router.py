@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -17,7 +17,6 @@ from app.features.reviews.schemas import (
     ReviewStatusUpdate,
 )
 from app.features.reviews.service import (
-    ReviewNotFoundError,
     ReviewScope,
     get_review,
     list_reviews,
@@ -87,13 +86,7 @@ async def get_review_detail(
     review_id: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> ReviewResponse:
-    try:
-        review = await get_review(db, review_id)
-    except ReviewNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    review = await get_review(db, review_id)
     return ReviewResponse.model_validate(review)
 
 
@@ -112,11 +105,5 @@ async def patch_review_status(
     payload: ReviewStatusUpdate,
     db: AsyncSession = Depends(get_db),
 ) -> ReviewResponse:
-    try:
-        review = await set_review_status(db, review_id, status=payload.status)
-    except ReviewNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    review = await set_review_status(db, review_id, status=payload.status)
     return ReviewResponse.model_validate(review)

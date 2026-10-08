@@ -174,7 +174,7 @@ Key rules:
 
 - **The backend owns the money, in VND.** Admin and storefront orders are priced by the same function: `unit_price = plant.price_vi + pot_size.price_adjustment_vi`, `subtotal_amount = sum(unit_price × quantity)`, a 50,000 VND `shipping_fee` unless the subtotal is above 500,000 VND, and `total_amount = subtotal_amount + shipping_fee`, all in `Decimal` / `NUMERIC(12,2)`. Every order stores `currency = 'VND'` and all three amounts. Prices or totals sent by the client are ignored. The legacy `price` / `price_adjustment` columns never price an order.
 - **Items are snapshots.** `plant_name`, `unit_price` and `pot_size` are copied at purchase time, so renaming, repricing, deactivating or retiring a plant never rewrites an existing order.
-- **One transaction.** Customer upsert, order, items and stock deduction commit together, with the plant rows locked so concurrent checkouts cannot oversell. Insufficient stock returns `400` and writes nothing.
+- **One transaction.** Customer upsert, order, items and stock deduction commit together, with the plant rows locked so concurrent checkouts cannot oversell. Insufficient stock returns `409` and writes nothing.
 - **Customers by phone.** A known phone reuses the existing customer (their stored name is preserved); an unknown phone creates one.
 - **Status pipeline.** `pending → confirmed → processing → shipping → completed`, forward-only, cancellable from any non-terminal status. Cancelling restores stock exactly once; `completed` and `cancelled` are final.
 

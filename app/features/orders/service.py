@@ -25,10 +25,12 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_FLOOR, Decimal
 from typing import Any, NamedTuple, Sequence
 
+from fastapi import status
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
 
+from app.core.exceptions import BadRequestError, ConflictError, ErrorCode, NotFoundError
 from app.core.text import normalize_vn_phone
 from app.features.customers.models import Customer
 from app.features.customers.service import resolve_customer_for_order
@@ -81,12 +83,18 @@ class OrderSource(str, enum.Enum):
     STOREFRONT = "storefront"
 
 
-class OrderNotFoundError(Exception):
+class OrderNotFoundError(NotFoundError):
     """Raised when an order id does not exist."""
 
+    error_code = ErrorCode.ORDER_NOT_FOUND
+    message = "Order not found"
 
-class PlantUnavailableError(Exception):
+
+class PlantUnavailableError(ConflictError):
     """Raised when a plant is inactive or the pot size cannot be ordered."""
+
+    error_code = ErrorCode.PLANT_UNAVAILABLE
+    message = "Plant is not available"
 
 
 class PotSizeUnavailableError(PlantUnavailableError):
@@ -94,22 +102,35 @@ class PotSizeUnavailableError(PlantUnavailableError):
     Raised when the requested pot size is unknown or no longer on sale.
 
     A subclass of `PlantUnavailableError`, so callers that treat every
-    unorderable line the same way keep working. The public checkout tells the
-    two apart: an unknown pot size is a `404`, a product that cannot be sold
-    right now is a `409`.
+    unorderable line the same way keep working. The API tells the two apart:
+    an unknown pot size is a `404`, a product that cannot be sold right now is
+    a `409`.
     """
 
+    status_code = status.HTTP_404_NOT_FOUND
+    error_code = ErrorCode.POT_SIZE_UNAVAILABLE
+    message = "Pot size is not available"
 
-class InsufficientStockError(Exception):
+
+class InsufficientStockError(ConflictError):
     """Raised when the ordered quantity exceeds the available stock."""
 
+    error_code = ErrorCode.INSUFFICIENT_STOCK
+    message = "Insufficient stock"
 
-class InvalidStatusTransitionError(Exception):
+
+class InvalidStatusTransitionError(BadRequestError):
     """Raised when a status change is not allowed for the current status."""
 
+    error_code = ErrorCode.INVALID_STATUS_TRANSITION
+    message = "Order status change is not allowed"
 
-class OrderTotalTooLargeError(Exception):
+
+class OrderTotalTooLargeError(BadRequestError):
     """Raised when the calculated total does not fit `NUMERIC(12,2)`."""
+
+    error_code = ErrorCode.ORDER_TOTAL_TOO_LARGE
+    message = "Order total is too large"
 
 
 class OrderItemInput(NamedTuple):

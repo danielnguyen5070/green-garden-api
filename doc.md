@@ -104,21 +104,53 @@ Used when creating an admin or changing a password:
 
 ### Error shape
 
-FastAPI default:
+Every error response (any non-2xx JSON, including unknown routes, `405` and
+unexpected server errors) has the same body:
 
 ```json
 {
-  "detail": "Error message or validation errors"
+  "status_code": 404,
+  "error_code": 1001,
+  "message": "Customer not found",
+  "error": null
 }
 ```
 
+- `status_code` — the HTTP status, repeated for convenience.
+- `error_code` — a stable integer the frontend can branch on (table below).
+- `message` — safe to show to the user. Never contains SQL, driver output or stack traces.
+- `error` — `null`, or structured details. For `422` it is a list of
+  `{"field": "body.email", "message": "...", "type": "..."}`; submitted values are never echoed back.
+
+Every response also carries an `X-Request-ID` header (a client-supplied
+`X-Request-ID` is reused when it is short and alphanumeric). The same id is
+written to the server logs, so quote it when reporting a problem. Unexpected
+errors always return `500` with `"message": "Internal server error"`; details
+only go to the logs.
+
 | Status | Meaning |
 |---|---|
-| `400` | Business rule violation (e.g. self-deactivation) |
+| `400` | Business rule violation (e.g. self-deactivation, inactive customer) |
 | `401` | Not authenticated / invalid credentials / invalid token |
+| `403` | Public form rejected by bot protection |
 | `404` | Resource not found |
-| `409` | Conflict (duplicate email) |
+| `409` | Conflict (duplicate email/phone/slug/SKU, insufficient stock, plant unavailable) |
 | `422` | Invalid request body / query params |
+| `429` | Rate limited (see `Retry-After`) |
+| `500` | Unexpected or database error |
+| `503` | Feature not configured (bank transfer, SePay webhook, chat) |
+
+#### Error codes
+
+| Range | `error_code` |
+|---|---|
+| Not found | `1000` generic, `1001` customer, `1002` admin, `1003` category, `1004` plant, `1005` plant image, `1006` plant pot size, `1007` order, `1008` review, `1009` notification, `1010` pot size not available for ordering |
+| Conflict | `2000` generic, `2001` admin email taken, `2002` customer phone taken, `2003` category slug taken, `2004` plant slug taken, `2005` plant SKU taken, `2006` insufficient stock, `2007` plant unavailable, `2008` duplicate resource (database constraint) |
+| Auth | `3000` unauthorized, `3001` invalid credentials, `3002` invalid/missing token, `3050` forbidden, `3051` submission rejected (bot protection) |
+| Request | `4000` bad request, `4001` validation error, `4002` self-deactivation, `4003` customer inactive, `4004` order total too large, `4005` invalid status transition, `4006` method not allowed |
+| Server | `5000` internal error, `5001` database error, `5002` service unavailable, `5003` rate limited |
+
+The codes are defined in `app/core/exceptions.py` (`ErrorCode`).
 
 ---
 
@@ -1399,9 +1431,10 @@ New orders always start as `pending`.
 
 | Status | When |
 |---|---|
-| `400` | Insufficient stock, inactive plant, no `price_vi`, unknown/inactive pot size, inactive customer |
+| `400` | Inactive customer, or the total is too large to store |
 | `401` | Not authenticated |
-| `404` | `plant_id` does not exist |
+| `404` | `plant_id` does not exist, or the pot size is unknown/inactive |
+| `409` | Insufficient stock, inactive plant, or no `price_vi` |
 | `422` | Invalid body (no items, `quantity < 1`, empty shipping address, unusable phone) |
 
 ```bash
