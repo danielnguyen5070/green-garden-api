@@ -45,7 +45,7 @@ from app.features.orders.schemas import (
     StorefrontOrderCustomer,
     StorefrontOrderResponse,
 )
-from app.schemas.overview import (
+from app.features.overview.schemas import (
     LowStockPlant,
     OrdersByStatus,
     OverviewResponse,

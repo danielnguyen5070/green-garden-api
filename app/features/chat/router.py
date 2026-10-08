@@ -11,8 +11,8 @@ from fastapi.responses import StreamingResponse
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.sse import sse_chunk, sse_done, sse_error
-from app.schemas.chat import ChatStreamRequest
-from app.services.ai.deepseek import (
+from app.features.chat.schemas import ChatStreamRequest
+from app.features.chat.deepseek import (
     DeepSeekNotConfiguredError,
     DeepSeekService,
     get_deepseek_service,

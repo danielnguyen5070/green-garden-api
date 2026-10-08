@@ -18,9 +18,9 @@ from app.core.config import get_settings
 from app.features.admins.models import Admin
 from app.features.categories.models import Category
 from app.features.plants.models import Plant
-from app.services.ai import chat_tools
-from app.services.ai.deepseek import DeepSeekService
-from app.services.ai.chat_tools import check_stock, get_plant_price
+from app.features.chat import tools as chat_tools
+from app.features.chat.deepseek import DeepSeekService
+from app.features.chat.tools import check_stock, get_plant_price
 
 
 CHAT_STREAM = "/api/v1/chat/stream"
@@ -87,7 +87,7 @@ async def test_chat_stream_requires_deepseek_config(
     get_settings.cache_clear()
     settings = get_settings()
     monkeypatch.setattr(settings, "deepseek_api_key", None)
-    monkeypatch.setattr("app.api.v1.chat.get_settings", lambda: settings)
+    monkeypatch.setattr("app.features.chat.router.get_settings", lambda: settings)
 
     response = await client.post(
         CHAT_STREAM,
@@ -104,7 +104,7 @@ async def test_chat_stream_greeting_direct_no_tools(
     get_settings.cache_clear()
     settings = get_settings()
     monkeypatch.setattr(settings, "deepseek_api_key", "test-key-not-real")
-    monkeypatch.setattr("app.api.v1.chat.get_settings", lambda: settings)
+    monkeypatch.setattr("app.features.chat.router.get_settings", lambda: settings)
 
     async def create(**kwargs: Any) -> Any:
         if kwargs.get("stream"):
@@ -159,7 +159,7 @@ async def test_chat_stream_emits_progressive_sse_chunks(
     get_settings.cache_clear()
     settings = get_settings()
     monkeypatch.setattr(settings, "deepseek_api_key", "test-key-not-real")
-    monkeypatch.setattr("app.api.v1.chat.get_settings", lambda: settings)
+    monkeypatch.setattr("app.features.chat.router.get_settings", lambda: settings)
 
     deltas = ["Cây", " Chùm", " Ngây", " hiện", " có", " giá", " tốt."]
 
@@ -210,7 +210,7 @@ async def test_price_question_uses_postgres_not_weaviate(
     get_settings.cache_clear()
     settings = get_settings()
     monkeypatch.setattr(settings, "deepseek_api_key", "test-key-not-real")
-    monkeypatch.setattr("app.api.v1.chat.get_settings", lambda: settings)
+    monkeypatch.setattr("app.features.chat.router.get_settings", lambda: settings)
 
     knowledge_calls: list[Any] = []
 
@@ -277,7 +277,7 @@ async def test_stock_question_uses_postgres_not_weaviate(
     get_settings.cache_clear()
     settings = get_settings()
     monkeypatch.setattr(settings, "deepseek_api_key", "test-key-not-real")
-    monkeypatch.setattr("app.api.v1.chat.get_settings", lambda: settings)
+    monkeypatch.setattr("app.features.chat.router.get_settings", lambda: settings)
 
     knowledge_calls: list[Any] = []
     monkeypatch.setattr(
@@ -328,7 +328,7 @@ async def test_knowledge_question_uses_weaviate_not_price_stock(
     get_settings.cache_clear()
     settings = get_settings()
     monkeypatch.setattr(settings, "deepseek_api_key", "test-key-not-real")
-    monkeypatch.setattr("app.api.v1.chat.get_settings", lambda: settings)
+    monkeypatch.setattr("app.features.chat.router.get_settings", lambda: settings)
 
     price_calls: list[Any] = []
     stock_calls: list[Any] = []
@@ -416,7 +416,7 @@ async def test_mixed_price_and_knowledge_calls_both(
     get_settings.cache_clear()
     settings = get_settings()
     monkeypatch.setattr(settings, "deepseek_api_key", "test-key-not-real")
-    monkeypatch.setattr("app.api.v1.chat.get_settings", lambda: settings)
+    monkeypatch.setattr("app.features.chat.router.get_settings", lambda: settings)
 
     knowledge_calls: list[Any] = []
 
@@ -515,7 +515,7 @@ async def test_chat_stream_errors_over_sse(
     get_settings.cache_clear()
     settings = get_settings()
     monkeypatch.setattr(settings, "deepseek_api_key", "test-key-not-real")
-    monkeypatch.setattr("app.api.v1.chat.get_settings", lambda: settings)
+    monkeypatch.setattr("app.features.chat.router.get_settings", lambda: settings)
 
     async def failing_stream(self: DeepSeekService, **_: object) -> AsyncIterator[str]:
         if False:  # pragma: no cover

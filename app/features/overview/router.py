@@ -1,7 +1,7 @@
 """Admin dashboard overview route (admin only, read-only).
 
 One request returns every statistic the dashboard needs. All aggregation lives
-in `app.services.overview_service`; this module only handles HTTP concerns.
+in `app.features.overview.service`; this module only handles HTTP concerns.
 """
 
 from __future__ import annotations
@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.features.auth.dependencies import get_current_admin
-from app.schemas.overview import OverviewResponse
-from app.services.overview_service import LOW_STOCK_THRESHOLD, build_overview
+from app.features.overview.schemas import OverviewResponse
+from app.features.overview.service import LOW_STOCK_THRESHOLD, build_overview
 
 router = APIRouter(
     prefix="/overview",

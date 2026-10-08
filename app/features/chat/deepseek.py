@@ -11,7 +11,7 @@ from openai import APIError, APITimeoutError, AsyncOpenAI, RateLimitError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-from app.services.ai.chat_tools import CHAT_TOOLS, execute_chat_tool
+from app.features.chat.tools import CHAT_TOOLS, execute_chat_tool
 
 logger = logging.getLogger(__name__)
 

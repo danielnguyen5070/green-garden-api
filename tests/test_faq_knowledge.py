@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from app.services.ai import chat_tools
+from app.features.chat import tools as chat_tools
 from app.features.knowledge import faq_indexer, retriever
 from app.features.knowledge.faq_indexer import (
     FAQ_SNAPSHOT_PATH,

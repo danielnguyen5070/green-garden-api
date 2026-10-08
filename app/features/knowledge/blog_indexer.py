@@ -121,7 +121,7 @@ async def _load_blogs(session: AsyncSession) -> list[Any]:
     try:
         from sqlalchemy import select
 
-        from app.models.blog import Blog  # type: ignore[attr-defined]
+        from app.features.blogs.models import Blog  # type: ignore[import-not-found]
     except ImportError:
         logger.info("Blog model not available yet; skipping blog reindex")
         return []
