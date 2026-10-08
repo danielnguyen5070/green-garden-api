@@ -7,7 +7,7 @@ import uuid
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.notification import Notification, NotificationType
+from app.features.notifications.models import Notification, NotificationType
 
 
 class NotificationNotFoundError(Exception):

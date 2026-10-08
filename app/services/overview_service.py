@@ -31,8 +31,8 @@ from sqlalchemy import Date, String, cast, func, select
 from sqlalchemy.dialects.postgresql import ARRAY, aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.category import Category
-from app.models.customer import Customer
+from app.features.categories.models import Category
+from app.features.customers.models import Customer
 from app.models.order import Order, OrderStatus
 from app.models.order_item import OrderItem
 from app.models.plant import Plant

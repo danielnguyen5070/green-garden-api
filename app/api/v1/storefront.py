@@ -23,7 +23,7 @@ from app.models.plant import Plant
 from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
 from app.models.review import ReviewStatus
-from app.schemas.category import (
+from app.features.categories.schemas import (
     PublicCategoryListItem,
     PublicCategoryListResponse,
 )
@@ -58,8 +58,8 @@ from app.shared.bot_protection.service import (
     CheckoutRateLimitedError,
     check_checkout_phone_limit,
 )
-from app.services.category_service import list_categories
-from app.services.customer_service import CustomerInactiveError
+from app.features.categories.service import list_categories
+from app.features.customers.service import CustomerInactiveError
 from app.services.order_service import (
     FREE_SHIPPING_ABOVE,
     SHIPPING_FEE,
@@ -186,36 +186,6 @@ async def _active_plant_or_404(db: AsyncSession, slug: str) -> Plant:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
-
-
-@router.get(
-    "/categories",
-    response_model=PublicCategoryListResponse,
-    summary="List active categories (public)",
-    description=(
-        "Storefront category navigation. Inactive categories are never returned. "
-        "Ordered by `sort_order` then `created_at`, both ascending."
-    ),
-)
-async def get_public_categories(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    search: str | None = Query(default=None, description="Match category name or slug"),
-    db: AsyncSession = Depends(get_db),
-) -> PublicCategoryListResponse:
-    items, total = await list_categories(
-        db,
-        page=page,
-        page_size=page_size,
-        search=search,
-        is_active=True,
-    )
-    return PublicCategoryListResponse(
-        items=[PublicCategoryListItem.model_validate(item) for item in items],
-        page=page,
-        page_size=page_size,
-        total=total,
-    )
 
 
 @router.get(

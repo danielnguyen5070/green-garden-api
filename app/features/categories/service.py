@@ -9,7 +9,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
-from app.models.category import Category
+from app.features.categories.models import Category
 from app.shared.storefront_notify import notify_storefront
 
 

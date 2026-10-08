@@ -12,7 +12,7 @@ from httpx import AsyncClient
 
 from app.core.config import get_settings
 from app.models.admin import Admin
-from app.models.category import Category
+from app.features.categories.models import Category
 from app.services.ai.knowledge.plant_indexer import (
     plant_chunks_to_weaviate_objects,
     sync_plant_knowledge,

@@ -14,7 +14,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
-from app.models.customer import Customer
+from app.features.customers.models import Customer
 
 
 class CustomerNotFoundError(Exception):

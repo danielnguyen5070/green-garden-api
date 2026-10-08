@@ -22,7 +22,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
-    from app.models.category import Category
+    from app.features.categories.models import Category
     from app.models.order_item import OrderItem
     from app.models.plant_image import PlantImage
     from app.models.plant_pot_size import PlantPotSize

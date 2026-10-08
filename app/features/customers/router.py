@@ -9,14 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies.auth import get_current_admin
-from app.schemas.customer import (
+from app.features.customers.schemas import (
     CustomerCreate,
     CustomerListResponse,
     CustomerResponse,
     CustomerStatusUpdate,
     CustomerUpdate,
 )
-from app.services.customer_service import (
+from app.features.customers.service import (
     CustomerNotFoundError,
     CustomerPhoneConflictError,
     create_customer,

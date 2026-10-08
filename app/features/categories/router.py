@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies.auth import get_current_admin
-from app.schemas.category import (
+from app.features.categories.schemas import (
     CategoryCreate,
     CategoryListItem,
     CategoryListResponse,
@@ -17,7 +17,7 @@ from app.schemas.category import (
     CategoryStatusUpdate,
     CategoryUpdate,
 )
-from app.services.category_service import (
+from app.features.categories.service import (
     CategoryNotFoundError,
     CategorySlugConflictError,
     create_category,

@@ -4,10 +4,11 @@ from app.db import registry  # noqa: F401
 
 from app.api.v1 import admins as admins_router
 from app.api.v1 import auth as auth_router
-from app.api.v1 import categories as categories_router
+from app.features.categories import public_router as categories_public_router
+from app.features.categories import router as categories_router
 from app.api.v1 import chat as chat_router
-from app.api.v1 import customers as customers_router
-from app.api.v1 import notifications as notifications_router
+from app.features.customers import router as customers_router
+from app.features.notifications import router as notifications_router
 from app.api.v1 import orders as orders_router
 from app.api.v1 import overview as overview_router
 from app.api.v1 import payments as payments_router
@@ -25,6 +26,7 @@ api_router.include_router(orders_router.router)
 api_router.include_router(overview_router.router)
 api_router.include_router(reviews_router.router)
 api_router.include_router(notifications_router.router)
+api_router.include_router(categories_public_router.router)
 api_router.include_router(storefront_router.router)
 api_router.include_router(payments_router.router)
 api_router.include_router(chat_router.router)

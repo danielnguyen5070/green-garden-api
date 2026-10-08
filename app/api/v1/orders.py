@@ -21,7 +21,7 @@ from app.schemas.order import (
     OrderResponse,
     OrderStatusUpdate,
 )
-from app.services.customer_service import CustomerInactiveError
+from app.features.customers.service import CustomerInactiveError
 from app.services.order_service import (
     InsufficientStockError,
     InvalidStatusTransitionError,

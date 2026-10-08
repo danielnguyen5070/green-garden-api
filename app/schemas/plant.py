@@ -17,7 +17,7 @@ from app.models.plant import (
     PlantType,
     PlantWatering,
 )
-from app.schemas.category import CategorySummary
+from app.features.categories.schemas import CategorySummary
 from app.schemas.plant_image import PlantImageResponse, PublicPlantImage
 from app.schemas.plant_pot_size import PlantPotSizeResponse, PublicPotSizeSummary
 

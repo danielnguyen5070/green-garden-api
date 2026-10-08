@@ -25,8 +25,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin import Admin
-from app.models.category import Category
-from app.models.customer import Customer
+from app.features.categories.models import Category
+from app.features.customers.models import Customer
 from app.models.order import Order, OrderStatus
 from app.models.order_item import OrderItem
 from app.models.plant import Plant

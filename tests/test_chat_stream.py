@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.admin import Admin
-from app.models.category import Category
+from app.features.categories.models import Category
 from app.models.plant import Plant
 from app.services.ai import chat_tools
 from app.services.ai.deepseek import DeepSeekService

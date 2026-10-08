@@ -11,8 +11,8 @@ from httpx import AsyncClient
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.category import Category
-from app.models.customer import Customer
+from app.features.categories.models import Category
+from app.features.customers.models import Customer
 from app.models.order import Order
 from app.models.plant import Plant
 from app.models.review import Review

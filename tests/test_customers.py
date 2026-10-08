@@ -10,7 +10,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin import Admin
-from app.models.customer import Customer
+from app.features.customers.models import Customer
 from app.models.order import Order, OrderStatus
 
 

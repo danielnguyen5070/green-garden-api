@@ -2,8 +2,8 @@
 
 from app.models.admin import Admin
 from app.db.base import Base
-from app.models.category import Category
-from app.models.customer import Customer
+from app.features.categories.models import Category
+from app.features.customers.models import Customer
 from app.models.order import Order, OrderStatus, PaymentMethod, PaymentStatus
 from app.models.order_item import OrderItem
 from app.models.payment_transaction import (
@@ -24,7 +24,7 @@ from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
 from app.models.plant_slug_history import PlantSlugHistory
 from app.models.review import Review, ReviewStatus
-from app.models.notification import Notification, NotificationType
+from app.features.notifications.models import Notification, NotificationType
 
 __all__ = [
     "Base",

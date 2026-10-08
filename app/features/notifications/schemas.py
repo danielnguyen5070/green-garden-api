@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.notification import NotificationType
+from app.features.notifications.models import NotificationType
 
 __all__ = [
     "NotificationListResponse",

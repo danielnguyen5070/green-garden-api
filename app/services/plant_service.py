@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
 
 from app.core.text import escape_ilike_pattern, normalize_search_query
-from app.models.category import Category
+from app.features.categories.models import Category
 from app.models.plant import (
     Plant,
     PlantDifficulty,
@@ -26,7 +26,7 @@ from app.models.plant_pot_size import PlantPotSize
 from app.models.plant_slug_history import PlantSlugHistory
 from app.services.ai.knowledge.plant_indexer import sync_plant_knowledge_safe
 from app.shared.storefront_notify import notify_storefront
-from app.services.category_service import CategoryNotFoundError, get_category
+from app.features.categories.service import CategoryNotFoundError, get_category
 
 SortField = Literal["created_at", "name", "price", "stock"]
 SortOrder = Literal["asc", "desc"]

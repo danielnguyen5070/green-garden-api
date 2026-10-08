@@ -9,12 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies.auth import get_current_admin
-from app.schemas.notification import (
+from app.features.notifications.schemas import (
     NotificationListResponse,
     NotificationReadAllResponse,
     NotificationResponse,
 )
-from app.services.notification_service import (
+from app.features.notifications.service import (
     NotificationNotFoundError,
     list_notifications,
     mark_all_notifications_read,

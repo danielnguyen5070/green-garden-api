@@ -21,7 +21,7 @@ from app.core.config import get_settings
 from app.core.security import hash_password, normalize_email
 from app.db import registry  # noqa: F401
 from app.models.admin import Admin
-from app.models.category import Category
+from app.features.categories.models import Category
 
 
 def _admin_url_for_maintenance(database_url: str) -> str:

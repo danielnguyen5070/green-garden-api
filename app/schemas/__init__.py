@@ -14,7 +14,7 @@ from app.schemas.auth import (
     MessageResponse,
 )
 from app.shared.bot_protection.schemas import BotSignals
-from app.schemas.category import (
+from app.features.categories.schemas import (
     CategoryCreate,
     CategoryListItem,
     CategoryListResponse,
@@ -25,7 +25,7 @@ from app.schemas.category import (
     PublicCategoryListItem,
     PublicCategoryListResponse,
 )
-from app.schemas.customer import (
+from app.features.customers.schemas import (
     CustomerCreate,
     CustomerListResponse,
     CustomerResponse,
@@ -89,7 +89,7 @@ from app.schemas.review import (
     ReviewResponse,
     ReviewStatusUpdate,
 )
-from app.schemas.notification import (
+from app.features.notifications.schemas import (
     NotificationListResponse,
     NotificationReadAllResponse,
     NotificationResponse,

@@ -30,13 +30,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
 
 from app.core.text import normalize_vn_phone
-from app.models.customer import Customer
+from app.features.customers.models import Customer
 from app.models.order import ORDER_CURRENCY, Order, OrderStatus, PaymentMethod
 from app.models.order_item import OrderItem
 from app.models.plant import Plant
 from app.models.plant_pot_size import PlantPotSize
-from app.services.customer_service import resolve_customer_for_order
-from app.services.notification_service import queue_new_order_notification
+from app.features.customers.service import resolve_customer_for_order
+from app.features.notifications.service import queue_new_order_notification
 from app.services.plant_service import PlantNotFoundError
 from app.shared.storefront_notify import notify_storefront
 
