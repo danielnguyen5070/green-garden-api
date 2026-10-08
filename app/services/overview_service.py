@@ -33,8 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.categories.models import Category
 from app.features.customers.models import Customer
-from app.models.order import Order, OrderStatus
-from app.models.order_item import OrderItem
+from app.features.orders.models import Order, OrderItem, OrderStatus
 from app.features.plants.models import Plant
 
 # A plant is "low stock" at this many units or fewer.

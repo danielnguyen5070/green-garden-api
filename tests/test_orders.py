@@ -18,10 +18,9 @@ from app.core.text import normalize_vn_phone
 from app.features.admins.models import Admin
 from app.features.categories.models import Category
 from app.features.customers.models import Customer
-from app.models.order import Order
-from app.models.order_item import OrderItem
+from app.features.orders.models import Order, OrderItem
 from app.features.plants.models import Plant, PlantPotSize
-from app.services.order_service import get_order, list_orders
+from app.features.orders.service import get_order, list_orders
 
 
 AUTH_PREFIX = "/api/v1/auth"

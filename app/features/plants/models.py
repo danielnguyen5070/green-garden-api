@@ -26,7 +26,7 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.features.categories.models import Category
-    from app.models.order_item import OrderItem
+    from app.features.orders.models import OrderItem
 
 
 class PlantType(str, enum.Enum):

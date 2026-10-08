@@ -15,10 +15,10 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.security import normalize_email
-from app.models.order import OrderStatus, PaymentMethod, PaymentStatus
+from app.features.orders.models import OrderStatus, PaymentMethod, PaymentStatus
 from app.shared.bot_protection.schemas import BotSignals
 from app.features.customers.schemas import validate_phone
-from app.schemas.payment import BankTransferInfo
+from app.features.payments.schemas import BankTransferInfo
 
 __all__ = [
     "OrderCreate",

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
-    from app.models.order import Order
+    from app.features.orders.models import Order
 
 
 class Customer(Base, UUIDPrimaryKeyMixin, TimestampMixin):

@@ -4,9 +4,14 @@ from app.features.admins.models import Admin
 from app.db.base import Base
 from app.features.categories.models import Category
 from app.features.customers.models import Customer
-from app.models.order import Order, OrderStatus, PaymentMethod, PaymentStatus
-from app.models.order_item import OrderItem
-from app.models.payment_transaction import (
+from app.features.orders.models import (
+    Order,
+    OrderItem,
+    OrderStatus,
+    PaymentMethod,
+    PaymentStatus,
+)
+from app.features.payments.models import (
     PaymentMatchStatus,
     PaymentProvider,
     PaymentTransaction,

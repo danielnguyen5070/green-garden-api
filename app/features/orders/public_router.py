@@ -1,31 +1,23 @@
-"""Public storefront routes: the catalogue and the COD / bank-transfer checkout.
+"""Public storefront checkout routes: shipping policy, quote, COD / bank-transfer orders.
 
-No authentication anywhere here. Only active plants are exposed, and checkout
-reuses `app.services.order_service` — the same VND pricing, snapshots and stock
-movements as the admin panel, with the shipping fee on top. The quote endpoint
-runs that pricing without writing, so the cart and checkout show exactly what
-the order will charge.
+No authentication anywhere here. Checkout reuses `app.features.orders.service`
+— the same VND pricing, snapshots and stock movements as the admin panel, with
+the shipping fee on top. The quote endpoint runs that pricing without writing,
+so the cart and checkout show exactly what the order will charge.
 """
 
 from __future__ import annotations
 
-from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.text import normalize_slug
-from app.models.order import ORDER_CURRENCY, Order, PaymentMethod
-from app.features.plants.models import Plant, PlantImage, PlantImageType, PlantPotSize
-from app.features.reviews.models import ReviewStatus
-from app.features.categories.schemas import (
-    PublicCategoryListItem,
-    PublicCategoryListResponse,
-)
-from app.schemas.order import (
+from app.features.customers.service import CustomerInactiveError
+from app.features.orders.models import ORDER_CURRENCY, Order, PaymentMethod
+from app.features.orders.schemas import (
     ShippingPolicyResponse,
     StorefrontOrderCreate,
     StorefrontOrderResponse,
@@ -33,34 +25,7 @@ from app.schemas.order import (
     StorefrontQuoteRequest,
     StorefrontQuoteResponse,
 )
-from app.schemas.payment import BankTransferInfo, StorefrontPaymentStatusResponse
-from app.features.plants.schemas import (
-    PlantImageResponse,
-    PlantPotSizeResponse,
-    PublicPlantDetail,
-    PublicPlantImage,
-    PublicPlantListItem,
-    PublicPlantListResponse,
-    PublicPlantSearchResponse,
-    PublicPotSizeSummary,
-)
-from app.features.reviews.schemas import (
-    PublicReviewListItem,
-    PublicReviewListResponse,
-    ReviewCreate,
-    ReviewResponse,
-)
-from app.shared.bot_protection.http import (
-    BOT_REJECTED_RESPONSES,
-    verify_bot_signals_or_403,
-)
-from app.shared.bot_protection.service import (
-    CheckoutRateLimitedError,
-    check_checkout_phone_limit,
-)
-from app.features.categories.service import list_categories
-from app.features.customers.service import CustomerInactiveError
-from app.services.order_service import (
+from app.features.orders.service import (
     FREE_SHIPPING_ABOVE,
     SHIPPING_FEE,
     InsufficientStockError,
@@ -75,26 +40,19 @@ from app.services.order_service import (
     get_order,
     quote_order,
 )
-from app.services.payment_service import bank_transfer_info
-from app.features.plants.dependencies import (
-    PLANT_NOT_FOUND_RESPONSES,
-    get_active_plant_or_404,
+from app.features.payments.schemas import (
+    BankTransferInfo,
+    StorefrontPaymentStatusResponse,
 )
-from app.features.plants.service import (
-    primary_image_url,
-    PlantNotFoundError,
-    SearchLocale,
-    SortField,
-    SortOrder,
-    get_plant_by_slug,
-    list_plants,
-    search_plants,
+from app.features.payments.service import bank_transfer_info
+from app.features.plants.service import PlantNotFoundError, primary_image_url
+from app.shared.bot_protection.http import (
+    BOT_REJECTED_RESPONSES,
+    verify_bot_signals_or_403,
 )
-from app.features.reviews.service import (
-    ReviewScope,
-    create_review,
-    get_review_summary,
-    list_reviews,
+from app.shared.bot_protection.service import (
+    CheckoutRateLimitedError,
+    check_checkout_phone_limit,
 )
 
 router = APIRouter(prefix="/storefront", tags=["storefront"])

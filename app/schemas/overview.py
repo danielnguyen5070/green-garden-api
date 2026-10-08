@@ -13,7 +13,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.order import OrderStatus
+from app.features.orders.models import OrderStatus
 
 __all__ = [
     "LowStockPlant",

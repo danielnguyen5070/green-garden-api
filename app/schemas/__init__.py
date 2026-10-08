@@ -32,7 +32,7 @@ from app.features.customers.schemas import (
     CustomerStatusUpdate,
     CustomerUpdate,
 )
-from app.schemas.order import (
+from app.features.orders.schemas import (
     OrderCreate,
     OrderCustomerCreate,
     OrderCustomerResponse,

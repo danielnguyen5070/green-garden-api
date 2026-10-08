@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.admins.models import Admin
 from app.features.customers.models import Customer
-from app.models.order import Order, OrderStatus
+from app.features.orders.models import Order, OrderStatus
 
 
 AUTH_PREFIX = "/api/v1/auth"

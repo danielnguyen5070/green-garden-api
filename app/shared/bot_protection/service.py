@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.text import normalize_vn_phone
 from app.features.customers.models import Customer
-from app.models.order import Order
+from app.features.orders.models import Order
 from app.shared.bot_protection.schemas import BotSignals
 
 MIN_FORM_FILL_MS = 3000

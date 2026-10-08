@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.order import PaymentMethod, PaymentStatus
+from app.features.orders.models import PaymentMethod, PaymentStatus
 
 __all__ = [
     "BankTransferInfo",

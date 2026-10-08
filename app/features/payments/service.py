@@ -25,13 +25,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
 from app.core.config import Settings, get_settings
-from app.models.order import Order, PaymentMethod, PaymentStatus
-from app.models.payment_transaction import (
+from app.features.orders.models import Order, PaymentMethod, PaymentStatus
+from app.features.payments.models import (
     PaymentMatchStatus,
     PaymentProvider,
     PaymentTransaction,
 )
-from app.schemas.payment import SePayWebhookPayload
+from app.features.payments.schemas import SePayWebhookPayload
 
 _QR_BASE_URL = "https://qr.sepay.vn/img"
 # Matches `payment_reference_for`: "GG" + YYYYMMDD + 4-digit daily sequence.

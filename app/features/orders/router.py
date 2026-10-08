@@ -1,7 +1,7 @@
 """Order management API routes (admin only).
 
 Orders are historical business records: there is no `DELETE`. Pricing, stock and
-status rules live in `app.services.order_service`.
+status rules live in `app.features.orders.service`.
 """
 
 from __future__ import annotations
@@ -14,15 +14,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.features.auth.dependencies import get_current_admin
-from app.models.order import OrderStatus
-from app.schemas.order import (
+from app.features.orders.models import OrderStatus
+from app.features.orders.schemas import (
     OrderCreate,
     OrderListResponse,
     OrderResponse,
     OrderStatusUpdate,
 )
 from app.features.customers.service import CustomerInactiveError
-from app.services.order_service import (
+from app.features.orders.service import (
     InsufficientStockError,
     InvalidStatusTransitionError,
     OrderItemInput,

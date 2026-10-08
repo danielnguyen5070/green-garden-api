@@ -18,8 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.schemas.payment import SePayWebhookPayload, SePayWebhookResponse
-from app.services.payment_service import process_sepay_webhook
+from app.features.payments.schemas import SePayWebhookPayload, SePayWebhookResponse
+from app.features.payments.service import process_sepay_webhook
 
 logger = logging.getLogger(__name__)
 
