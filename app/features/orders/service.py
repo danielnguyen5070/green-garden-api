@@ -31,6 +31,8 @@ from sqlalchemy.orm import noload, selectinload
 
 from app.core.text import normalize_vn_phone
 from app.features.customers.models import Customer
+from app.features.customers.service import resolve_customer_for_order
+from app.features.notifications.service import queue_new_order_notification
 from app.features.orders.models import (
     ORDER_CURRENCY,
     Order,
@@ -39,8 +41,6 @@ from app.features.orders.models import (
     PaymentMethod,
 )
 from app.features.plants.models import Plant, PlantPotSize
-from app.features.customers.service import resolve_customer_for_order
-from app.features.notifications.service import queue_new_order_notification
 from app.features.plants.service import PlantNotFoundError
 from app.shared.storefront_notify import notify_storefront
 

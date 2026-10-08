@@ -1,9 +1,10 @@
 """Import every model so SQLAlchemy resolves string relationships and Alembic sees all tables."""
 
-from app.features.admins.models import Admin
 from app.db.base import Base
+from app.features.admins.models import Admin
 from app.features.categories.models import Category
 from app.features.customers.models import Customer
+from app.features.notifications.models import Notification, NotificationType
 from app.features.orders.models import (
     Order,
     OrderItem,
@@ -30,7 +31,6 @@ from app.features.plants.models import (
     PlantWatering,
 )
 from app.features.reviews.models import Review, ReviewStatus
-from app.features.notifications.models import Notification, NotificationType
 
 __all__ = [
     "Base",

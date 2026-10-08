@@ -15,7 +15,6 @@ from app.features.categories.models import Category
 from app.features.plants.models import Plant
 from app.features.reviews.models import Review, ReviewStatus
 
-
 AUTH_PREFIX = "/api/v1/auth"
 REVIEWS_PREFIX = "/api/v1/reviews"
 STOREFRONT_PREFIX = "/api/v1/storefront"

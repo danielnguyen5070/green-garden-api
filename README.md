@@ -290,40 +290,34 @@ Auth and admin tests run against `TEST_DATABASE_URL` (`green_garden_test`), not 
 
 ## Project layout
 
+Code is grouped by feature. Each feature folder holds its own layers: `models.py` (SQLAlchemy), `schemas.py` (Pydantic), `service.py` (business logic, no FastAPI), `router.py` (admin routes) and `public_router.py` (storefront routes under `/storefront`, no auth).
+
 ```
 app/
   main.py
-  cli.py                 # python -m app.cli create-admin
-  api/v1/auth.py         # Auth routes
-  api/v1/admins.py       # Admin management routes
-  api/v1/categories.py   # Categories (admin)
-  api/v1/plants.py       # Plants / images / pot sizes (admin)
-  api/v1/customers.py    # Customers (admin)
-  api/v1/orders.py       # Orders (admin)
-  api/v1/overview.py     # Dashboard statistics (admin)
-  api/v1/storefront.py   # Public catalogue routes
-  core/security.py       # Argon2id + JWT
-  core/cookies.py        # HttpOnly cookie helpers
-  core/text.py           # Slug / SKU / phone normalization
-  dependencies/auth.py   # get_current_admin()
-  schemas/auth.py
-  schemas/admin.py
-  schemas/category.py
-  schemas/plant.py
-  schemas/plant_image.py
-  schemas/plant_pot_size.py
-  schemas/customer.py
-  schemas/order.py
-  schemas/overview.py
-  services/auth_service.py
-  services/admin_service.py
-  services/category_service.py
-  services/plant_service.py
-  services/customer_service.py
-  services/order_service.py
-  services/overview_service.py
-  models/
+  cli.py                     # python -m app.cli create-admin
+  api/router.py              # Mounts every feature router under /api/v1
+  core/                      # config, database, security (Argon2id + JWT), cookies, text normalization
+  db/base.py                 # Declarative Base and mixins
+  db/registry.py             # Imports every model (SQLAlchemy relationships, Alembic metadata)
+  shared/bot_protection/     # Honeypot / fill-time check and checkout phone limit
+  shared/storefront_notify.py  # Storefront cache revalidation webhook
+  features/
+    auth/                    # Login, refresh, logout, get_current_admin()
+    admins/                  # Admin management
+    categories/              # Admin + public category routes
+    plants/                  # Plants, images, pot sizes, slug history; admin + public routes
+    customers/
+    orders/                  # Admin orders + public quote / checkout / payment status
+    payments/                # SePay bank transfer and webhook
+    reviews/                 # Admin moderation + public shop and plant reviews
+    notifications/
+    overview/                # Dashboard statistics
+    knowledge/               # Weaviate indexing and retrieval for the chatbot
+    chat/                    # DeepSeek chat stream and tools
 ```
+
+A feature may import another feature's `models`, `schemas` or `service`, never its routers.
 
 ## Database architecture
 

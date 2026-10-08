@@ -24,7 +24,6 @@ from app.shared.bot_protection.service import (
     verify_bot_signals,
 )
 
-
 CHECKOUT_PATH = "/api/v1/storefront/orders"
 STOREFRONT_PREFIX = "/api/v1/storefront"
 HUMAN_BOT_SIGNALS = {"website": "", "form_elapsed_ms": 5000}

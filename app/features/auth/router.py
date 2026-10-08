@@ -12,9 +12,9 @@ from app.core.config import get_settings
 from app.core.cookies import clear_auth_cookies, set_access_cookie, set_auth_cookies
 from app.core.database import get_db
 from app.core.security import create_token
-from app.features.auth.dependencies import get_current_admin
 from app.features.admins.models import Admin
 from app.features.admins.schemas import AdminResponse
+from app.features.auth.dependencies import get_current_admin
 from app.features.auth.schemas import (
     AdminLoginRequest,
     AuthResponse,

@@ -19,7 +19,6 @@ from app.features.knowledge.plant_indexer import (
 )
 from app.features.knowledge.weaviate import KnowledgeSourceType, knowledge_object_uuid
 
-
 AUTH_PREFIX = "/api/v1/auth"
 PLANTS_PREFIX = "/api/v1/plants"
 

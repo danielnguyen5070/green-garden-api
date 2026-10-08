@@ -11,12 +11,12 @@ from fastapi.responses import StreamingResponse
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.sse import sse_chunk, sse_done, sse_error
-from app.features.chat.schemas import ChatStreamRequest
 from app.features.chat.deepseek import (
     DeepSeekNotConfiguredError,
     DeepSeekService,
     get_deepseek_service,
 )
+from app.features.chat.schemas import ChatStreamRequest
 
 logger = logging.getLogger(__name__)
 

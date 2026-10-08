@@ -17,11 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.features.admins.models import Admin
 from app.features.categories.models import Category
-from app.features.plants.models import Plant
 from app.features.chat import tools as chat_tools
 from app.features.chat.deepseek import DeepSeekService
 from app.features.chat.tools import check_stock, get_plant_price
-
+from app.features.plants.models import Plant
 
 CHAT_STREAM = "/api/v1/chat/stream"
 

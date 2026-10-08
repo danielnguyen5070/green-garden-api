@@ -12,6 +12,8 @@ from sqlalchemy.orm import noload, selectinload
 
 from app.core.text import escape_ilike_pattern, normalize_search_query
 from app.features.categories.models import Category
+from app.features.categories.service import CategoryNotFoundError, get_category
+from app.features.knowledge.plant_indexer import sync_plant_knowledge_safe
 from app.features.plants.models import (
     Plant,
     PlantDifficulty,
@@ -25,9 +27,7 @@ from app.features.plants.models import (
     PlantType,
     PlantWatering,
 )
-from app.features.knowledge.plant_indexer import sync_plant_knowledge_safe
 from app.shared.storefront_notify import notify_storefront
-from app.features.categories.service import CategoryNotFoundError, get_category
 
 SortField = Literal["created_at", "name", "price", "stock"]
 SortOrder = Literal["asc", "desc"]

@@ -10,17 +10,17 @@ from app.features.knowledge.blog_indexer import (
     reindex_all_blogs,
     update_blog_knowledge,
 )
+from app.features.knowledge.builder import (
+    PlantChunk,
+    build_plant_content,
+    prepare_plant_chunks,
+)
 from app.features.knowledge.faq_indexer import (
     delete_faq_knowledge,
     index_faq,
     load_faq_snapshot,
     reindex_all_faqs,
     update_faq_knowledge,
-)
-from app.features.knowledge.builder import (
-    PlantChunk,
-    build_plant_content,
-    prepare_plant_chunks,
 )
 from app.features.knowledge.plant_indexer import (
     delete_plant_knowledge,

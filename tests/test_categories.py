@@ -13,7 +13,6 @@ from app.features.admins.models import Admin
 from app.features.categories.models import Category
 from app.features.plants.models import Plant
 
-
 AUTH_PREFIX = "/api/v1/auth"
 CATEGORIES_PREFIX = "/api/v1/categories"
 STOREFRONT_PREFIX = "/api/v1/storefront"

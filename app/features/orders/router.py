@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.features.auth.dependencies import get_current_admin
+from app.features.customers.service import CustomerInactiveError
 from app.features.orders.models import OrderStatus
 from app.features.orders.schemas import (
     OrderCreate,
@@ -21,7 +22,6 @@ from app.features.orders.schemas import (
     OrderResponse,
     OrderStatusUpdate,
 )
-from app.features.customers.service import CustomerInactiveError
 from app.features.orders.service import (
     InsufficientStockError,
     InvalidStatusTransitionError,

@@ -16,17 +16,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-from app.features.plants.models import Plant
 from app.features.knowledge.builder import prepare_plant_chunks
 from app.features.knowledge.weaviate import (
-    KnowledgeSourceType,
     PLANT_COLLECTION_NAME,
+    KnowledgeSourceType,
     delete_plant_knowledge_by_source,
     ensure_plant_knowledge_collection,
     get_weaviate_client,
     knowledge_object_uuid,
     upsert_plant_knowledge_objects,
 )
+from app.features.plants.models import Plant
 
 logger = logging.getLogger(__name__)
 

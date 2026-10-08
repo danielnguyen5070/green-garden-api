@@ -15,7 +15,6 @@ from app.core.config import get_settings
 from app.core.security import create_token, hash_password, verify_password
 from app.features.admins.models import Admin
 
-
 AUTH_PREFIX = "/api/v1/auth"
 
 

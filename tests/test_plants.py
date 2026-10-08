@@ -26,7 +26,6 @@ from app.features.plants.models import (
 )
 from app.features.plants.service import get_plant, list_plants
 
-
 AUTH_PREFIX = "/api/v1/auth"
 PLANTS_PREFIX = "/api/v1/plants"
 STOREFRONT_PREFIX = "/api/v1/storefront"

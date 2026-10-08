@@ -13,7 +13,6 @@ from app.features.admins.models import Admin
 from app.features.customers.models import Customer
 from app.features.orders.models import Order, OrderStatus
 
-
 AUTH_PREFIX = "/api/v1/auth"
 CUSTOMERS_PREFIX = "/api/v1/customers"
 

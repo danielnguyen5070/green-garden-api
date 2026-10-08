@@ -8,7 +8,8 @@ from uuid import UUID
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
 
-from app.core.text import normalize_slug, normalize_sku
+from app.core.text import normalize_sku, normalize_slug
+from app.features.categories.schemas import CategorySummary
 from app.features.plants.models import (
     PlantDifficulty,
     PlantGrowthRate,
@@ -18,7 +19,6 @@ from app.features.plants.models import (
     PlantType,
     PlantWatering,
 )
-from app.features.categories.schemas import CategorySummary
 
 __all__ = [
     "CategorySummary",

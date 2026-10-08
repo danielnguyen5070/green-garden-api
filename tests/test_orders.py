@@ -19,9 +19,8 @@ from app.features.admins.models import Admin
 from app.features.categories.models import Category
 from app.features.customers.models import Customer
 from app.features.orders.models import Order, OrderItem
-from app.features.plants.models import Plant, PlantPotSize
 from app.features.orders.service import get_order, list_orders
-
+from app.features.plants.models import Plant, PlantPotSize
 
 AUTH_PREFIX = "/api/v1/auth"
 CUSTOMERS_PREFIX = "/api/v1/customers"

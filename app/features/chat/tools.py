@@ -10,11 +10,11 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.text import escape_ilike_pattern, normalize_search_query, normalize_slug
-from app.features.plants.models import Plant
 from app.features.knowledge.retriever import (
     search_faq_knowledge,
     search_plant_knowledge,
 )
+from app.features.plants.models import Plant
 
 logger = logging.getLogger(__name__)
 

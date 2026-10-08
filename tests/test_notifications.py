@@ -14,7 +14,6 @@ from app.features.categories.models import Category
 from app.features.notifications.models import Notification, NotificationType
 from app.features.plants.models import Plant
 
-
 AUTH_PREFIX = "/api/v1/auth"
 NOTIFICATIONS_PREFIX = "/api/v1/notifications"
 ORDERS_PREFIX = "/api/v1/orders"

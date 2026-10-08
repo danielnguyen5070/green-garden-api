@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import hash_password, verify_password
 from app.features.admins.models import Admin
 
-
 AUTH_PREFIX = "/api/v1/auth"
 ADMINS_PREFIX = "/api/v1/admins"
 
