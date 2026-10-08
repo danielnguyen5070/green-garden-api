@@ -38,7 +38,7 @@ from app.models.plant_pot_size import PlantPotSize
 from app.services.customer_service import resolve_customer_for_order
 from app.services.notification_service import queue_new_order_notification
 from app.services.plant_service import PlantNotFoundError
-from app.services.storefront_notify import notify_storefront
+from app.shared.storefront_notify import notify_storefront
 
 _ORDER_NUMBER_PREFIX = "GG"
 # Shared advisory lock key so concurrent checkouts allocate order numbers

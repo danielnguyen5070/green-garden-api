@@ -9,7 +9,7 @@ from sqlalchemy import BigInteger, ForeignKey, Index, Numeric, String, Text, Uni
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class PaymentProvider(str, enum.Enum):

@@ -8,7 +8,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, UUIDPrimaryKeyMixin
+from app.db.base import Base, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.plant import Plant

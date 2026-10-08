@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.review import ReviewStatus
-from app.schemas.bot_protection import BotSignals
+from app.shared.bot_protection.schemas import BotSignals
 
 __all__ = [
     "PublicReviewListItem",

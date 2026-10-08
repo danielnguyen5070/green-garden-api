@@ -11,8 +11,8 @@ import httpx
 import pytest
 
 from app.core.config import Settings
-from app.services import storefront_notify
-from app.services.storefront_notify import (
+from app.shared import storefront_notify
+from app.shared.storefront_notify import (
     build_request,
     notify_storefront,
     send_storefront_notification,

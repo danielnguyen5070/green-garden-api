@@ -13,7 +13,7 @@ from app.schemas.auth import (
     AuthResponse,
     MessageResponse,
 )
-from app.schemas.bot_protection import BotSignals
+from app.shared.bot_protection.schemas import BotSignals
 from app.schemas.category import (
     CategoryCreate,
     CategoryListItem,

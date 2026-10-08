@@ -1,6 +1,6 @@
 """Bot-signal fields shared by the public storefront forms.
 
-They are read by `app.services.bot_protection_service` in the route and never
+They are read by `app.shared.bot_protection.service` in the route and never
 reach the order or review business logic.
 """
 

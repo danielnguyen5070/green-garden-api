@@ -1,5 +1,7 @@
 from fastapi import APIRouter
 
+from app.db import registry  # noqa: F401
+
 from app.api.v1 import admins as admins_router
 from app.api.v1 import auth as auth_router
 from app.api.v1 import categories as categories_router

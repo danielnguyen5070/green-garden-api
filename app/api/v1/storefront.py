@@ -23,7 +23,6 @@ from app.models.plant import Plant
 from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
 from app.models.review import ReviewStatus
-from app.schemas.bot_protection import BotSignals
 from app.schemas.category import (
     PublicCategoryListItem,
     PublicCategoryListResponse,
@@ -51,11 +50,13 @@ from app.schemas.review import (
     ReviewCreate,
     ReviewResponse,
 )
-from app.services.bot_protection_service import (
-    BotSignalRejectedError,
+from app.shared.bot_protection.http import (
+    BOT_REJECTED_RESPONSES,
+    verify_bot_signals_or_403,
+)
+from app.shared.bot_protection.service import (
     CheckoutRateLimitedError,
     check_checkout_phone_limit,
-    verify_bot_signals,
 )
 from app.services.category_service import list_categories
 from app.services.customer_service import CustomerInactiveError
@@ -96,26 +97,11 @@ router = APIRouter(prefix="/storefront", tags=["storefront"])
 _PLANT_NOT_FOUND = {
     status.HTTP_404_NOT_FOUND: {"description": "Plant not found or inactive"}
 }
-_BOT_REJECTED = {
-    status.HTTP_403_FORBIDDEN: {
-        "description": "Honeypot filled or form submitted too quickly"
-    }
-}
 
 
 def _payment_info(order: Order) -> BankTransferInfo | None:
     details = bank_transfer_info(order)
     return BankTransferInfo(**details._asdict()) if details is not None else None
-
-
-def _verify_bot_signals_or_403(payload: BotSignals) -> None:
-    try:
-        verify_bot_signals(payload)
-    except BotSignalRejectedError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Submission rejected",
-        ) from exc
 
 
 def _sorted_images(plant: Plant) -> list[PlantImage]:
@@ -265,13 +251,13 @@ async def get_public_reviews(
         "Bot protection: the hidden `website` field must be empty and "
         "`form_elapsed_ms` must be at least 3000, otherwise `403`."
     ),
-    responses=_BOT_REJECTED,
+    responses=BOT_REJECTED_RESPONSES,
 )
 async def post_public_review(
     payload: ReviewCreate,
     db: AsyncSession = Depends(get_db),
 ) -> ReviewResponse:
-    _verify_bot_signals_or_403(payload)
+    verify_bot_signals_or_403(payload)
     review = await create_review(
         db,
         name=payload.name,
@@ -316,14 +302,14 @@ async def get_public_plant_reviews(
         "Bot protection: the hidden `website` field must be empty and "
         "`form_elapsed_ms` must be at least 3000, otherwise `403`."
     ),
-    responses={**_PLANT_NOT_FOUND, **_BOT_REJECTED},
+    responses={**_PLANT_NOT_FOUND, **BOT_REJECTED_RESPONSES},
 )
 async def post_public_plant_review(
     slug: str,
     payload: ReviewCreate,
     db: AsyncSession = Depends(get_db),
 ) -> ReviewResponse:
-    _verify_bot_signals_or_403(payload)
+    verify_bot_signals_or_403(payload)
     plant = await _active_plant_or_404(db, slug)
     review = await create_review(
         db,
@@ -604,7 +590,7 @@ async def post_storefront_quote(
         "that the response is `429` with a `Retry-After` header in seconds."
     ),
     responses={
-        **_BOT_REJECTED,
+        **BOT_REJECTED_RESPONSES,
         status.HTTP_400_BAD_REQUEST: {
             "description": "Order total too large, or the customer is deactivated"
         },
@@ -629,7 +615,7 @@ async def post_storefront_order(
     payload: StorefrontOrderCreate,
     db: AsyncSession = Depends(get_db),
 ) -> StorefrontOrderResponse:
-    _verify_bot_signals_or_403(payload)
+    verify_bot_signals_or_403(payload)
     if (
         payload.payment_method is PaymentMethod.BANK_TRANSFER
         and not get_settings().bank_transfer_enabled()

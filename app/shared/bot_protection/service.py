@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.text import normalize_vn_phone
 from app.models.customer import Customer
 from app.models.order import Order
-from app.schemas.bot_protection import BotSignals
+from app.shared.bot_protection.schemas import BotSignals
 
 MIN_FORM_FILL_MS = 3000
 CHECKOUT_PHONE_LIMIT = 3

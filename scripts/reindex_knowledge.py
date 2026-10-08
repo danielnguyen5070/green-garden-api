@@ -14,6 +14,7 @@ import sys
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
+from app.db import registry  # noqa: F401
 from app.services.ai.knowledge.blog_indexer import reindex_all_blogs
 from app.services.ai.knowledge.faq_indexer import reindex_all_faqs
 from app.services.ai.knowledge.plant_indexer import reindex_all_plants

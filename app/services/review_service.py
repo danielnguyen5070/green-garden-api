@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.plant import Plant
 from app.models.review import Review, ReviewStatus
-from app.services.storefront_notify import notify_storefront
+from app.shared.storefront_notify import notify_storefront
 
 ReviewScope = Literal["shop", "plant"]
 """`shop` = website-wide reviews (no plant); `plant` = reviews of any plant."""

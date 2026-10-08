@@ -8,7 +8,7 @@ from sqlalchemy import Boolean, DateTime, Enum, Index, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, UUIDPrimaryKeyMixin
+from app.db.base import Base, UUIDPrimaryKeyMixin
 
 
 class NotificationType(str, enum.Enum):

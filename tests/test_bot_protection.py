@@ -16,8 +16,8 @@ from app.models.customer import Customer
 from app.models.order import Order
 from app.models.plant import Plant
 from app.models.review import Review
-from app.schemas.bot_protection import BotSignals
-from app.services.bot_protection_service import (
+from app.shared.bot_protection.schemas import BotSignals
+from app.shared.bot_protection.service import (
     CHECKOUT_PHONE_LIMIT,
     MIN_FORM_FILL_MS,
     BotSignalRejectedError,

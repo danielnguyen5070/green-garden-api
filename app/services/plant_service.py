@@ -25,7 +25,7 @@ from app.models.plant_image import PlantImage, PlantImageType
 from app.models.plant_pot_size import PlantPotSize
 from app.models.plant_slug_history import PlantSlugHistory
 from app.services.ai.knowledge.plant_indexer import sync_plant_knowledge_safe
-from app.services.storefront_notify import notify_storefront
+from app.shared.storefront_notify import notify_storefront
 from app.services.category_service import CategoryNotFoundError, get_category
 
 SortField = Literal["created_at", "name", "price", "stock"]

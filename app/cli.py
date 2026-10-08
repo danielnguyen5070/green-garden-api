@@ -9,6 +9,7 @@ import sys
 
 from app.core.database import AsyncSessionLocal
 from app.core.security import normalize_email
+from app.db import registry  # noqa: F401
 from app.services.auth_service import create_admin
 
 
