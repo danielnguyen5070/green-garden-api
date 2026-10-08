@@ -75,7 +75,7 @@ from app.features.plants.schemas import (
     PublicPlantListResponse,
     PublicPlantSearchResponse,
 )
-from app.schemas.review import (
+from app.features.reviews.schemas import (
     PublicReviewListItem,
     PublicReviewListResponse,
     ReviewCreate,

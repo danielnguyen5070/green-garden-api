@@ -9,14 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.features.auth.dependencies import get_current_admin
-from app.models.review import ReviewStatus
-from app.schemas.review import (
+from app.features.reviews.models import ReviewStatus
+from app.features.reviews.schemas import (
     ReviewListItem,
     ReviewListResponse,
     ReviewResponse,
     ReviewStatusUpdate,
 )
-from app.services.review_service import (
+from app.features.reviews.service import (
     ReviewNotFoundError,
     ReviewScope,
     get_review,

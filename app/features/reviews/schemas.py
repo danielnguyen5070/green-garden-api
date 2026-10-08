@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.review import ReviewStatus
+from app.features.reviews.models import ReviewStatus
 from app.shared.bot_protection.schemas import BotSignals
 
 __all__ = [

@@ -15,7 +15,7 @@ from app.features.categories.models import Category
 from app.features.customers.models import Customer
 from app.models.order import Order
 from app.features.plants.models import Plant
-from app.models.review import Review
+from app.features.reviews.models import Review
 from app.shared.bot_protection.schemas import BotSignals
 from app.shared.bot_protection.service import (
     CHECKOUT_PHONE_LIMIT,

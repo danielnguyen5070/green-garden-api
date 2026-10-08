@@ -24,7 +24,7 @@ from app.features.plants.models import (
     PlantType,
     PlantWatering,
 )
-from app.models.review import Review, ReviewStatus
+from app.features.reviews.models import Review, ReviewStatus
 from app.features.notifications.models import Notification, NotificationType
 
 __all__ = [

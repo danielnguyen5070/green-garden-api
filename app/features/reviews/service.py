@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.features.plants.models import Plant
-from app.models.review import Review, ReviewStatus
+from app.features.reviews.models import Review, ReviewStatus
 from app.shared.storefront_notify import notify_storefront
 
 ReviewScope = Literal["shop", "plant"]

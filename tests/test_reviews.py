@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.admins.models import Admin
 from app.features.categories.models import Category
 from app.features.plants.models import Plant
-from app.models.review import Review, ReviewStatus
+from app.features.reviews.models import Review, ReviewStatus
 
 
 AUTH_PREFIX = "/api/v1/auth"
