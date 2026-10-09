@@ -1,0 +1,29 @@
+groups:
+  - name: http_recording
+    rules:
+      - record: job:http_requests:rate5m
+        expr: sum by (job) (rate(http_requests_total[5m]))
+
+      - record: route:http_requests:rate5m
+        expr: sum by (job, method, route) (rate(http_requests_total[5m]))
+
+      - record: job:http_errors:ratio5m
+        expr: |
+          sum by (job) (rate(http_requests_total{status=~"5.."}[5m]))
+            /
+          sum by (job) (rate(http_requests_total[5m]))
+
+      - record: job:http_latency:p50_5m
+        expr: histogram_quantile(0.50, sum by (job, le) (rate(http_request_duration_seconds_bucket[5m])))
+
+      - record: job:http_latency:p95_5m
+        expr: histogram_quantile(0.95, sum by (job, le) (rate(http_request_duration_seconds_bucket[5m])))
+
+      - record: job:http_latency:p99_5m
+        expr: histogram_quantile(0.99, sum by (job, le) (rate(http_request_duration_seconds_bucket[5m])))
+
+      - record: route:http_latency:p95_5m
+        expr: histogram_quantile(0.95, sum by (job, route, le) (rate(http_request_duration_seconds_bucket[5m])))
+
+      - record: route:http_latency:p99_5m
+        expr: histogram_quantile(0.99, sum by (job, route, le) (rate(http_request_duration_seconds_bucket[5m])))

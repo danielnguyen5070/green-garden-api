@@ -1,0 +1,156 @@
+# Monitoring stack, layered on top of docker-compose.yml via COMPOSE_FILE, e.g.
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.monitoring.yml
+# UIs bind to 127.0.0.1 only; reach them from your machine through an SSH tunnel.
+# Secret files live in monitoring/secrets/ (gitignored, see README).
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=5GB
+      - --web.enable-lifecycle
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    secrets:
+      - metrics_token
+    networks:
+      - monitoring
+    depends_on:
+      - alertmanager
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    # Alertmanager does not expand env vars, so render the chat id into the config first.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        sed "s/__TELEGRAM_CHAT_ID__/$${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID is required}/g"
+        /etc/alertmanager/alertmanager.yml.tmpl > /tmp/alertmanager.yml
+        && exec /bin/alertmanager
+        --config.file=/tmp/alertmanager.yml
+        --storage.path=/alertmanager
+    environment:
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - ./monitoring/alertmanager:/etc/alertmanager:ro
+      - alertmanager_data:/alertmanager
+    secrets:
+      - telegram_bot_token
+    networks:
+      - monitoring
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_SECURITY_COOKIE_SAMESITE: strict
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+    ports:
+      # 3000 is taken by the Next.js storefront
+      - "127.0.0.1:3001:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=15s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.service,com.docker.compose.project
+      - --disable_metrics=percpu,sched,tcp,udp,advtcp,hugetlb,referenced_memory,cpu_topology,resctrl,process
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - monitoring
+    mem_limit: 256m
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro
+    networks:
+      - monitoring
+    mem_limit: 64m
+    restart: unless-stopped
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+    environment:
+      DATA_SOURCE_NAME: ${POSTGRES_EXPORTER_DSN:?POSTGRES_EXPORTER_DSN is required}
+    networks:
+      - monitoring
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9187/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+secrets:
+  metrics_token:
+    file: ./monitoring/secrets/metrics_token
+  telegram_bot_token:
+    file: ./monitoring/secrets/telegram_bot_token
+
+networks:
+  monitoring:
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:

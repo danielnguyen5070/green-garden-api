@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     postgres_password: str = "green_garden"
     postgres_port: int = 5432
 
+    # SQLAlchemy connection pool (per uvicorn worker)
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    db_pool_timeout: float = 30.0
+
+    # Prometheus scrape token; /metrics returns 404 while unset.
+    metrics_token: str | None = None
+
     # JWT
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
@@ -82,6 +90,7 @@ class Settings(BaseSettings):
         return value  # type: ignore[return-value]
 
     @field_validator(
+        "metrics_token",
         "weaviate_api_key",
         "openai_api_key",
         "deepseek_api_key",

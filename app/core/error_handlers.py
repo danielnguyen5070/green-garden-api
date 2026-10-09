@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.exceptions import AppException, ErrorCode
+from app.core.metrics import record_exception
 
 logger = logging.getLogger("app.errors")
 
@@ -106,6 +107,7 @@ def _request_label(request: Request) -> str:
 
 async def app_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, AppException)
+    record_exception(exc.error_code.name, "app")
     if exc.status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR:
         logger.error(
             "%s failed: %s (%s) %s",
@@ -139,6 +141,7 @@ async def http_exception_handler(request: Request, exc: Exception) -> JSONRespon
         status_code,
         ErrorCode.INTERNAL_ERROR if status_code >= 500 else ErrorCode.BAD_REQUEST,
     )
+    record_exception(error_code.name, "http")
     default_message = _STATUS_MESSAGES.get(status_code, "Request failed")
     if isinstance(exc.detail, str) and exc.detail:
         message, error = exc.detail, None
@@ -160,6 +163,7 @@ async def http_exception_handler(request: Request, exc: Exception) -> JSONRespon
 
 async def validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, RequestValidationError)
+    record_exception(type(exc).__name__, "validation")
     errors = sanitize_validation_errors(exc.errors())
     logger.info(
         "%s -> 422 VALIDATION_ERROR fields=%s",
@@ -175,6 +179,7 @@ async def validation_exception_handler(request: Request, exc: Exception) -> JSON
 
 
 async def integrity_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    record_exception(type(exc).__name__, "integrity")
     logger.warning("%s -> 409 integrity error: %s", _request_label(request), exc)
     return error_response(
         status_code=status.HTTP_409_CONFLICT,
@@ -184,6 +189,7 @@ async def integrity_error_handler(request: Request, exc: Exception) -> JSONRespo
 
 
 async def database_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    record_exception(type(exc).__name__, "database")
     logger.error("%s database error", _request_label(request), exc_info=exc)
     return error_response(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -193,6 +199,7 @@ async def database_error_handler(request: Request, exc: Exception) -> JSONRespon
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    record_exception(type(exc).__name__, "unhandled")
     logger.error("%s unhandled exception", _request_label(request), exc_info=exc)
     return error_response(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

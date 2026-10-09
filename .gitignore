@@ -47,5 +47,9 @@ htmlcov/
 # Docker
 *.log
 
+# Monitoring secrets (metrics_token, telegram_bot_token)
+monitoring/secrets/*
+!monitoring/secrets/.gitkeep
+
 # Alembic
 # Keep migrations/; ignore local scratch only

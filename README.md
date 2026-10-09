@@ -250,6 +250,8 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 | `AUTH_COOKIE_SAMESITE` | `lax` / `strict` / `none` |
 | `AUTH_COOKIE_DOMAIN` | Shared parent domain (e.g. `.ngocnganbentre.vn`); empty = host-only |
 | `CORS_ORIGINS` | Comma-separated Next.js origins |
+| `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` / `DB_POOL_TIMEOUT` | SQLAlchemy pool per uvicorn worker |
+| `METRICS_TOKEN` | Bearer token for `GET /metrics`; empty = endpoint returns 404 |
 
 Do not commit `.env`. Never use `allow_origins=["*"]` with cookie credentials.
 
@@ -279,6 +281,53 @@ docker compose exec api python -m scripts.reindex_knowledge
 ```
 
 The reindex wipes existing FAQ objects first, so removed or renamed questions disappear. The chatbot searches them through the `search_shop_faq` tool. Requires `WEAVIATE_ENABLED=true` in the running container (recreate it with `docker compose up -d api` after changing `.env`).
+
+## Monitoring (Prometheus + Grafana)
+
+The API exposes Prometheus metrics at `GET /metrics` (hidden from OpenAPI, requires `Authorization: Bearer $METRICS_TOKEN`). The monitoring stack lives in `docker-compose.monitoring.yml` with config under `monitoring/`:
+
+| Service | Purpose | Access |
+|---|---|---|
+| Prometheus | Scrapes metrics, evaluates `monitoring/prometheus/rules/*.yml` | `127.0.0.1:9090` |
+| Alertmanager | Sends alerts to Telegram | `127.0.0.1:9093` |
+| Grafana | "Green Garden API" dashboard (provisioned) | `127.0.0.1:3001` |
+| cAdvisor / node-exporter | Container and host CPU, memory, disk | internal only |
+| postgres-exporter | PostgreSQL health and connections | internal only |
+
+Setup:
+
+```bash
+# 1. Secrets (files are gitignored; must be readable by the container users)
+openssl rand -hex 32 | tr -d '\n' > monitoring/secrets/metrics_token
+printf '%s' '<telegram-bot-token>' > monitoring/secrets/telegram_bot_token
+chmod 644 monitoring/secrets/*
+
+# 2. .env: METRICS_TOKEN (same value as the file), GRAFANA_ADMIN_PASSWORD,
+#    TELEGRAM_CHAT_ID, POSTGRES_EXPORTER_DSN, and add the monitoring compose file:
+#    COMPOSE_FILE=docker-compose.yml:docker-compose.monitoring.yml
+
+# 3. Read-only DB role for postgres-exporter
+docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "CREATE ROLE monitoring WITH LOGIN PASSWORD '...'; GRANT pg_monitor TO monitoring;"
+
+# 4. Start
+docker compose up -d --build
+```
+
+The UIs listen on localhost only. From your machine, open an SSH tunnel to the VPS:
+
+```bash
+ssh -L 3001:127.0.0.1:3001 -L 9090:127.0.0.1:9090 -L 9093:127.0.0.1:9093 user@vps
+```
+
+Application metrics use low-cardinality labels only: route templates (`/api/v1/plants/{plant_id}`), never raw paths; unknown paths are grouped as `__unmatched__`. SSE chat streams are counted but excluded from latency percentiles. Because uvicorn runs several workers, metrics use prometheus_client multiprocess mode (`PROMETHEUS_MULTIPROC_DIR`, reset by `scripts/start.sh` on container start).
+
+Validate config changes before reloading Prometheus (`curl -X POST localhost:9090/-/reload`):
+
+```bash
+docker compose exec prometheus promtool check config /etc/prometheus/prometheus.yml
+docker compose exec alertmanager amtool check-config /tmp/alertmanager.yml
+```
 
 ## Tests
 

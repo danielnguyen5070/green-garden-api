@@ -7,21 +7,26 @@ not the primary application database.
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncGenerator
-from urllib.parse import urlparse, urlunparse
-from uuid import uuid4
 
-import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+# Must happen before prometheus_client is imported: tests use the in-process
+# registry and must not write into the running server's multiprocess directory.
+os.environ.pop("PROMETHEUS_MULTIPROC_DIR", None)
 
-from app.core.config import get_settings
-from app.core.security import hash_password, normalize_email
-from app.db import registry  # noqa: F401
-from app.features.admins.models import Admin
-from app.features.categories.models import Category
+from collections.abc import AsyncGenerator  # noqa: E402
+from urllib.parse import urlparse, urlunparse  # noqa: E402
+from uuid import uuid4  # noqa: E402
+
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
+
+from app.core.config import get_settings  # noqa: E402
+from app.core.security import hash_password, normalize_email  # noqa: E402
+from app.db import registry  # noqa: E402, F401
+from app.features.admins.models import Admin  # noqa: E402
+from app.features.categories.models import Category  # noqa: E402
 
 
 def _admin_url_for_maintenance(database_url: str) -> str:
