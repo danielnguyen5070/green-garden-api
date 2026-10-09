@@ -1,6 +1,6 @@
 """Prometheus metrics: definitions, HTTP middleware and the protected `/metrics` route.
 
-Uvicorn runs several workers in production, so metrics use prometheus_client's
+Uvicorn may run several workers, so metrics use prometheus_client's
 multiprocess mode whenever `PROMETHEUS_MULTIPROC_DIR` is set. That directory
 must be emptied before the workers start (see `scripts/start.sh`).
 

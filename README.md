@@ -320,7 +320,7 @@ The UIs listen on localhost only. From your machine, open an SSH tunnel to the V
 ssh -L 3001:127.0.0.1:3001 -L 9090:127.0.0.1:9090 -L 9093:127.0.0.1:9093 user@vps
 ```
 
-Application metrics use low-cardinality labels only: route templates (`/api/v1/plants/{plant_id}`), never raw paths; unknown paths are grouped as `__unmatched__`. SSE chat streams are counted but excluded from latency percentiles. Because uvicorn runs several workers, metrics use prometheus_client multiprocess mode (`PROMETHEUS_MULTIPROC_DIR`, reset by `scripts/start.sh` on container start).
+Application metrics use low-cardinality labels only: route templates (`/api/v1/plants/{plant_id}`), never raw paths; unknown paths are grouped as `__unmatched__`. SSE chat streams are counted but excluded from latency percentiles. Uvicorn runs a single worker (`--workers 1` in `docker-compose.yml`) to fit a small VPS. Metrics still use prometheus_client multiprocess mode (`PROMETHEUS_MULTIPROC_DIR`, reset by `scripts/start.sh` on container start), so raising the worker count later needs no metrics changes.
 
 Validate config changes before reloading Prometheus (`curl -X POST localhost:9090/-/reload`):
 
