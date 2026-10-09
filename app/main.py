@@ -13,6 +13,7 @@ from app.core.metrics import PrometheusMiddleware, mark_worker_dead
 from app.core.metrics import router as metrics_router
 from app.core.rate_limit import RateLimitMiddleware, exempt, limiter
 from app.core.request_context import REQUEST_ID_HEADER, RequestContextMiddleware
+from app.core.security_headers import SecurityHeadersMiddleware
 
 settings = get_settings()
 configure_logging(settings)
@@ -56,6 +57,8 @@ app.add_middleware(
         REQUEST_ID_HEADER,
     ],
 )
+# Outermost: CORS preflights and last-resort 500s also get security headers.
+app.add_middleware(SecurityHeadersMiddleware)
 
 register_exception_handlers(app)
 
