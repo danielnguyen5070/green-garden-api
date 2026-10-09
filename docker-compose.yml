@@ -1,53 +1,70 @@
 services:
   db:
     image: postgres:16-alpine
+
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
 
+    restart: unless-stopped
+
   api:
     build: .
+
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+
     env_file:
       - .env
+
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      # Inside Compose the API must reach Weaviate by service name.
+
+      # API container reaches Weaviate through Docker service name
       WEAVIATE_URL: http://weaviate:8080
       WEAVIATE_GRPC_PORT: ${WEAVIATE_GRPC_PORT:-50051}
       WEAVIATE_ENABLED: ${WEAVIATE_ENABLED:-true}
       RAG_TOP_K: ${RAG_TOP_K:-3}
+
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       DEEPSEEK_TIMEOUT_SECONDS: ${DEEPSEEK_TIMEOUT_SECONDS:-60}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
     depends_on:
       db:
         condition: service_healthy
       weaviate:
         condition: service_healthy
-    volumes:
-      - .:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+
+    restart: unless-stopped
 
   weaviate:
     image: cr.weaviate.io/semitechnologies/weaviate:1.28.4
+
     ports:
-      - "8080:8080"
-      - "50051:50051"
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:50051:50051"
+
     environment:
       QUERY_DEFAULTS_LIMIT: 25
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
@@ -57,14 +74,25 @@ services:
       ENABLE_API_BASED_MODULES: "true"
       CLUSTER_HOSTNAME: node1
       OPENAI_APIKEY: ${OPENAI_API_KEY:-}
+
     volumes:
       - weaviate_data:/var/lib/weaviate
+
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/.well-known/ready"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--spider",
+          "-q",
+          "http://localhost:8080/v1/.well-known/ready"
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 15s
+
+    restart: unless-stopped
 
 volumes:
   postgres_data:
