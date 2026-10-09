@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 from fastapi.responses import StreamingResponse
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.exceptions import ServiceUnavailableError
+from app.core.rate_limit import chat_global_key, chat_global_limit, chat_limit, rate_limit
 from app.core.sse import sse_chunk, sse_done, sse_error
 from app.features.chat.deepseek import (
     DeepSeekNotConfiguredError,
@@ -59,12 +60,17 @@ async def _stream_chat_events(
             "description": "SSE stream of chat chunks",
             "content": {"text/event-stream": {}},
         },
+        status.HTTP_429_TOO_MANY_REQUESTS: {
+            "description": "Too many chat requests; retry after `Retry-After` seconds",
+        },
         status.HTTP_503_SERVICE_UNAVAILABLE: {
             "description": "DeepSeek is not configured",
         },
     },
 )
-async def stream_chat(payload: ChatStreamRequest) -> StreamingResponse:
+@rate_limit(chat_limit)
+@rate_limit(chat_global_limit, key_func=chat_global_key)
+async def stream_chat(request: Request, payload: ChatStreamRequest) -> StreamingResponse:
     """Stream an assistant reply as Server-Sent Events.
 
     DeepSeek may call catalogue/knowledge tools internally; only the final

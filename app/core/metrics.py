@@ -31,6 +31,7 @@ from sqlalchemy.pool import Pool
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import get_settings
+from app.core.rate_limit import exempt
 
 METRICS_PATH = "/metrics"
 UNMATCHED_ROUTE = "__unmatched__"
@@ -188,6 +189,7 @@ router = APIRouter()
 
 
 @router.get(METRICS_PATH, include_in_schema=False)
+@exempt
 async def metrics(authorization: str | None = Header(default=None)) -> Response:
     token = get_settings().metrics_token
     if not token:

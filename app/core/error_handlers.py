@@ -19,6 +19,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -161,6 +162,21 @@ async def http_exception_handler(request: Request, exc: Exception) -> JSONRespon
     )
 
 
+async def rate_limit_exceeded_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, RateLimitExceeded)
+    record_exception(ErrorCode.RATE_LIMITED.name, "rate_limit")
+    logger.info("%s -> 429 RATE_LIMITED (%s)", _request_label(request), exc.detail)
+    response = error_response(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        error_code=ErrorCode.RATE_LIMITED,
+        message=_STATUS_MESSAGES[status.HTTP_429_TOO_MANY_REQUESTS],
+    )
+    # Adds X-RateLimit-* and Retry-After for the limit that was hit.
+    return request.app.state.limiter._inject_headers(
+        response, getattr(request.state, "view_rate_limit", None)
+    )
+
+
 async def validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, RequestValidationError)
     record_exception(type(exc).__name__, "validation")
@@ -210,6 +226,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppException, app_exception_handler)
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(IntegrityError, integrity_error_handler)

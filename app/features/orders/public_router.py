@@ -10,12 +10,18 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import ServiceUnavailableError
+from app.core.rate_limit import (
+    RATE_LIMITED_RESPONSES,
+    public_write_limit,
+    quote_limit,
+    rate_limit,
+)
 from app.features.orders.models import ORDER_CURRENCY, Order, PaymentMethod
 from app.features.orders.schemas import (
     ShippingPolicyResponse,
@@ -88,8 +94,12 @@ async def get_shipping_policy() -> ShippingPolicyResponse:
         "failing. `max_quantity` is the plant's current stock; checkout "
         "rejects a quantity above it."
     ),
+    responses=RATE_LIMITED_RESPONSES,
 )
+@rate_limit(quote_limit)
 async def post_storefront_quote(
+    request: Request,
+    response: Response,
     payload: StorefrontQuoteRequest,
     db: AsyncSession = Depends(get_db),
 ) -> StorefrontQuoteResponse:
@@ -176,8 +186,9 @@ async def post_storefront_quote(
         "`pending`; the shop moves them on from the admin panel.\n\n"
         "Bot protection: the hidden `website` field must be empty and "
         "`form_elapsed_ms` must be at least 3000, otherwise `403`. Each "
-        "normalized phone number may place at most 3 orders per hour; beyond "
-        "that the response is `429` with a `Retry-After` header in seconds."
+        "normalized phone number may place at most 3 orders per hour, and each "
+        "client IP is rate-limited; beyond that the response is `429` with a "
+        "`Retry-After` header in seconds."
     ),
     responses={
         **BOT_REJECTED_RESPONSES,
@@ -185,7 +196,10 @@ async def post_storefront_quote(
             "description": "Order total too large, or the customer is deactivated"
         },
         status.HTTP_429_TOO_MANY_REQUESTS: {
-            "description": "Too many recent orders for this phone number"
+            "description": (
+                "Too many recent orders for this phone number, or too many "
+                "requests from this client"
+            )
         },
         status.HTTP_404_NOT_FOUND: {
             "description": "Plant or selected pot size does not exist"
@@ -201,7 +215,10 @@ async def post_storefront_quote(
         },
     },
 )
+@rate_limit(public_write_limit)
 async def post_storefront_order(
+    request: Request,
+    response: Response,
     payload: StorefrontOrderCreate,
     db: AsyncSession = Depends(get_db),
 ) -> StorefrontOrderResponse:
@@ -233,9 +250,9 @@ async def post_storefront_order(
         payment_method=payload.payment_method,
     )
 
-    response = StorefrontOrderResponse.model_validate(order)
-    response.payment = _payment_info(order)
-    return response
+    result = StorefrontOrderResponse.model_validate(order)
+    result.payment = _payment_info(order)
+    return result
 
 
 @router.get(

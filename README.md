@@ -50,7 +50,7 @@ After the first admin exists, additional admins can be created from the Admin Da
 
 Tokens are **never** returned in JSON. Frontends must use `credentials: "include"` and must not store tokens in localStorage/sessionStorage.
 
-TODO (production): rate-limit `POST /api/v1/auth/login`.
+`POST /api/v1/auth/login` is rate-limited per client IP and per email for failed attempts; see [Rate limiting](#rate-limiting).
 
 ### Example login
 
@@ -252,8 +252,57 @@ curl http://localhost:8000/api/v1/storefront/plants/monstera-deliciosa
 | `CORS_ORIGINS` | Comma-separated Next.js origins |
 | `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` / `DB_POOL_TIMEOUT` | SQLAlchemy pool per uvicorn worker |
 | `METRICS_TOKEN` | Bearer token for `GET /metrics`; empty = endpoint returns 404 |
+| `RATE_LIMIT_ENABLED` | `false` disables all rate limits |
+| `RATE_LIMIT_STORAGE_URI` | Counter storage; Compose uses `redis://redis:6379/0`, default `memory://` (per worker) |
+| `RATE_LIMIT_STRATEGY` | `moving-window` (default) or `fixed-window` |
+| `RATE_LIMIT_*` | Limit strings per route group; see [Rate limiting](#rate-limiting) |
+| `TRUSTED_PROXIES` | IPs/CIDRs allowed to set `X-Forwarded-For` |
 
 Do not commit `.env`. Never use `allow_origins=["*"]` with cookie credentials.
+
+## Rate limiting
+
+Requests are rate-limited per client IP with [SlowAPI](https://github.com/laurentS/slowapi). Counters live in Redis (`redis` service in `docker-compose.yml`) so every uvicorn worker shares them. Limits use the `limits` syntax (`10/minute;60/hour`) and can be changed through environment variables without code changes:
+
+| Variable | Default | Applies to |
+|---|---|---|
+| `RATE_LIMIT_DEFAULT` | `200/minute` | Every non-exempt route, per IP, all routes combined |
+| `RATE_LIMIT_LOGIN` | `5/minute;20/hour` | `POST /auth/login`, per IP |
+| `RATE_LIMIT_LOGIN_EMAIL_FAILURES` | `10/hour` | Failed logins per email, from any IP; successful logins do not count |
+| `RATE_LIMIT_REFRESH` | `30/minute` | `POST /auth/refresh`, per IP |
+| `RATE_LIMIT_CHAT` | `10/minute;60/hour;200/day` | `POST /chat/stream`, per IP |
+| `RATE_LIMIT_CHAT_GLOBAL` | `1000/hour` | `POST /chat/stream`, all clients combined (caps DeepSeek spend) |
+| `RATE_LIMIT_PUBLIC_WRITE` | `10/minute;50/hour` | `POST /storefront/orders` and both review submissions, per IP |
+| `RATE_LIMIT_QUOTE` | `30/minute` | `POST /storefront/orders/quote`, per IP |
+
+`/health`, `/metrics` and the SePay webhook are exempt. A limited request gets the standard error body with `429`, `error_code` 5003 and a `Retry-After` header in seconds; responses also carry `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`. Checkout keeps its own per-phone limit on top (3 orders per hour).
+
+If Redis is unreachable the limiter fails open: requests are served and counted in per-worker memory until Redis recovers. The error is logged, never returned.
+
+**Client IP behind Nginx.** `X-Forwarded-For` is only honoured when the direct peer is in `TRUSTED_PROXIES`; the rightmost untrusted address in the header is the client. Requests from the host Nginx reach the container through the Docker bridge gateway, which is why Compose trusts `172.16.0.0/12`. Nginx must overwrite the header so clients cannot inject addresses:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Check it after deploying:
+
+```bash
+# Expect 401s, then 429 with Retry-After
+for i in $(seq 1 7); do
+  curl -s -o /dev/null -w '%{http_code}\n' -X POST https://api.example.com/api/v1/auth/login \
+    -H 'Content-Type: application/json' -d '{"email":"x@example.com","password":"wrong"}'
+done
+docker compose exec redis redis-cli --scan --pattern 'LIMITS:LIMITER/gg-rl/*'
+```
+
+Requests that reach the API without Nginx (for example a server-side renderer calling `127.0.0.1:8000` directly) share one IP bucket; keep such callers behind Nginx or raise `RATE_LIMIT_DEFAULT` accordingly.
 
 ## Migrations
 
@@ -336,6 +385,12 @@ docker compose exec api pytest
 ```
 
 Auth and admin tests run against `TEST_DATABASE_URL` (`green_garden_test`), not the primary app database.
+
+Tests count rate limits in memory and disable them except in `tests/test_rate_limit.py`. The Redis multi-worker test runs only when `RATE_LIMIT_TEST_REDIS_URI` is set:
+
+```bash
+docker compose exec -e RATE_LIMIT_TEST_REDIS_URI=redis://redis:6379/15 api pytest tests/test_rate_limit.py
+```
 
 ## Project layout
 

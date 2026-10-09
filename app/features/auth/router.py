@@ -1,6 +1,6 @@
 """Auth API routes.
 
-TODO(production): Rate-limit POST /login (per IP / email) before public exposure.
+`POST /login` is rate-limited per client IP and, for failed attempts, per email.
 """
 
 from __future__ import annotations
@@ -11,6 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.cookies import clear_auth_cookies, set_access_cookie, set_auth_cookies
 from app.core.database import get_db
+from app.core.rate_limit import (
+    RATE_LIMITED_RESPONSES,
+    ensure_login_email_allowed,
+    login_limit,
+    rate_limit,
+    record_login_email_failure,
+    refresh_limit,
+)
 from app.core.security import create_token
 from app.features.admins.models import Admin
 from app.features.admins.schemas import AdminResponse
@@ -22,6 +30,7 @@ from app.features.auth.schemas import (
 )
 from app.features.auth.service import (
     AuthenticationError,
+    InvalidCredentialsError,
     authenticate_admin,
     issue_token_pair,
     resolve_admin_from_token,
@@ -35,8 +44,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     response_model=AuthResponse,
     status_code=status.HTTP_200_OK,
     summary="Admin login",
+    responses=RATE_LIMITED_RESPONSES,
 )
+@rate_limit(login_limit)
 async def login(
+    request: Request,
     payload: AdminLoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_db),
@@ -46,11 +58,16 @@ async def login(
 
     Tokens are never returned in the JSON body.
     """
-    admin = await authenticate_admin(
-        db,
-        email=payload.email,
-        password=payload.password,
-    )
+    ensure_login_email_allowed(payload.email)
+    try:
+        admin = await authenticate_admin(
+            db,
+            email=payload.email,
+            password=payload.password,
+        )
+    except InvalidCredentialsError:
+        record_login_email_failure(payload.email)
+        raise
 
     access_token, refresh_token = issue_token_pair(admin)
     set_auth_cookies(response, access_token=access_token, refresh_token=refresh_token)
@@ -83,7 +100,9 @@ async def me(current_admin: Admin = Depends(get_current_admin)) -> AdminResponse
     "/refresh",
     response_model=MessageResponse,
     summary="Refresh access token",
+    responses=RATE_LIMITED_RESPONSES,
 )
+@rate_limit(refresh_limit)
 async def refresh(
     request: Request,
     response: Response,

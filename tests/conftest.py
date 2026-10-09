@@ -11,6 +11,8 @@ import os
 # Must happen before prometheus_client is imported: tests use the in-process
 # registry and must not write into the running server's multiprocess directory.
 os.environ.pop("PROMETHEUS_MULTIPROC_DIR", None)
+# Tests count in process memory, never in the running server's Redis.
+os.environ["RATE_LIMIT_STORAGE_URI"] = "memory://"
 
 from collections.abc import AsyncGenerator  # noqa: E402
 from urllib.parse import urlparse, urlunparse  # noqa: E402
@@ -92,6 +94,46 @@ def prepare_test_database(test_database_url: str) -> None:
     # Restore primary DATABASE_URL for app settings used by model tests
     if previous_url is not None:
         os.environ["DATABASE_URL"] = previous_url
+    get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def rate_limits_off():
+    """Disable rate limiting by default so unrelated tests never hit 429."""
+    from app.core.rate_limit import limiter, reset_rate_limits
+
+    reset_rate_limits()
+    limiter.enabled = False
+    yield
+    limiter.enabled = False
+    reset_rate_limits()
+
+
+@pytest.fixture
+def rate_limiting():
+    """
+    Enable rate limiting; returns `configure(**overrides)` to override settings.
+
+    `configure(rate_limit_login="2/minute")` sets `RATE_LIMIT_LOGIN`.
+    """
+    from app.core.rate_limit import limiter
+
+    previous: dict[str, str | None] = {}
+
+    def configure(**overrides: str) -> None:
+        for name, value in overrides.items():
+            key = name.upper()
+            previous.setdefault(key, os.environ.get(key))
+            os.environ[key] = value
+        get_settings.cache_clear()
+
+    limiter.enabled = True
+    yield configure
+    for key, value in previous.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
     get_settings.cache_clear()
 
 

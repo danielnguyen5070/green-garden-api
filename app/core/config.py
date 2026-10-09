@@ -1,4 +1,5 @@
 from functools import lru_cache
+from ipaddress import IPv4Network, IPv6Network, ip_network
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -35,6 +36,24 @@ class Settings(BaseSettings):
 
     # Prometheus scrape token; /metrics returns 404 while unset.
     metrics_token: str | None = None
+
+    # Rate limiting (SlowAPI). `memory://` counters are per worker; use Redis
+    # whenever more than one worker or container serves traffic.
+    rate_limit_enabled: bool = True
+    rate_limit_storage_uri: str = "memory://"
+    rate_limit_strategy: Literal["fixed-window", "moving-window"] = "moving-window"
+    # Ceiling per client IP across all non-exempt routes.
+    rate_limit_default: str = "200/minute"
+    rate_limit_login: str = "5/minute;20/hour"
+    rate_limit_login_email_failures: str = "10/hour"
+    rate_limit_refresh: str = "30/minute"
+    rate_limit_chat: str = "10/minute;60/hour;200/day"
+    # Shared by every client: caps DeepSeek spend.
+    rate_limit_chat_global: str = "1000/hour"
+    rate_limit_public_write: str = "10/minute;50/hour"
+    rate_limit_quote: str = "30/minute"
+    # Peers allowed to set X-Forwarded-For: comma-separated IPs or CIDRs.
+    trusted_proxies: str = "127.0.0.1,::1"
 
     # JWT
     jwt_secret_key: str
@@ -113,6 +132,13 @@ class Settings(BaseSettings):
 
     def bank_transfer_enabled(self) -> bool:
         return bool(self.sepay_account_number and self.sepay_webhook_api_key)
+
+    def trusted_proxy_networks(self) -> list[IPv4Network | IPv6Network]:
+        return [
+            ip_network(entry.strip(), strict=False)
+            for entry in self.trusted_proxies.split(",")
+            if entry.strip()
+        ]
 
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

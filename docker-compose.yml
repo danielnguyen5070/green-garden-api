@@ -56,6 +56,11 @@ services:
       # Prometheus scrapes /metrics with this bearer token (unset = endpoint disabled)
       METRICS_TOKEN: ${METRICS_TOKEN:-}
 
+      # Rate-limit counters shared by all workers
+      RATE_LIMIT_STORAGE_URI: ${RATE_LIMIT_STORAGE_URI:-redis://redis:6379/0}
+      # Host Nginx reaches the published port through the Docker bridge gateway
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}
+
     # Per-worker Prometheus metric files; must not outlive the container.
     tmpfs:
       - /tmp/prometheus_multiproc
@@ -68,6 +73,8 @@ services:
       db:
         condition: service_healthy
       weaviate:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
@@ -110,6 +117,32 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+
+    # Rate-limit counters only: no persistence, bounded memory.
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - volatile-ttl
+
+    networks:
+      - backend
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
     restart: unless-stopped
 

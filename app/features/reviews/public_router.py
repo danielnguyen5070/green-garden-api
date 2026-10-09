@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.rate_limit import RATE_LIMITED_RESPONSES, public_write_limit, rate_limit
 from app.features.plants.dependencies import (
     PLANT_NOT_FOUND_RESPONSES,
     get_active_plant_or_404,
@@ -92,9 +93,12 @@ async def get_public_reviews(
         "Bot protection: the hidden `website` field must be empty and "
         "`form_elapsed_ms` must be at least 3000, otherwise `403`."
     ),
-    responses=BOT_REJECTED_RESPONSES,
+    responses={**BOT_REJECTED_RESPONSES, **RATE_LIMITED_RESPONSES},
 )
+@rate_limit(public_write_limit)
 async def post_public_review(
+    request: Request,
+    response: Response,
     payload: ReviewCreate,
     db: AsyncSession = Depends(get_db),
 ) -> ReviewResponse:
@@ -143,9 +147,16 @@ async def get_public_plant_reviews(
         "Bot protection: the hidden `website` field must be empty and "
         "`form_elapsed_ms` must be at least 3000, otherwise `403`."
     ),
-    responses={**PLANT_NOT_FOUND_RESPONSES, **BOT_REJECTED_RESPONSES},
+    responses={
+        **PLANT_NOT_FOUND_RESPONSES,
+        **BOT_REJECTED_RESPONSES,
+        **RATE_LIMITED_RESPONSES,
+    },
 )
+@rate_limit(public_write_limit)
 async def post_public_plant_review(
+    request: Request,
+    response: Response,
     slug: str,
     payload: ReviewCreate,
     db: AsyncSession = Depends(get_db),

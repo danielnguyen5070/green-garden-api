@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.error_handlers import sanitize_validation_errors
+from app.core.rate_limit import exempt
 from app.core.exceptions import (
     RequestValidationAppError,
     ServiceUnavailableError,
@@ -65,6 +66,7 @@ def _verify_sepay_api_key(authorization: str | None) -> None:
         },
     },
 )
+@exempt
 async def post_sepay_webhook(
     raw_payload: dict[str, Any] = Body(...),
     authorization: str | None = Header(default=None),
