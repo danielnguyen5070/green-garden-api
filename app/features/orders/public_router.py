@@ -66,7 +66,7 @@ def _payment_info(order: Order) -> BankTransferInfo | None:
     response_model=ShippingPolicyResponse,
     summary="Shipping fee and free-shipping threshold (public)",
     description=(
-        "The flat delivery fee every order pays unless its subtotal is strictly "
+        "The flat delivery fee every order pays unless its subtotal is at or "
         "above `free_shipping_above`. Amounts are in `currency` (always VND)."
     ),
 )

@@ -292,7 +292,7 @@ class StorefrontQuoteResponse(BaseModel):
 
 
 class ShippingPolicyResponse(BaseModel):
-    """Flat fee, waived when the subtotal is strictly above `free_shipping_above`."""
+    """Flat fee, waived when the subtotal is at or above `free_shipping_above`."""
 
     currency: str
     shipping_fee: Decimal

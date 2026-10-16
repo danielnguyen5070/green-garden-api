@@ -32,13 +32,13 @@ HUMAN_BOT_SIGNALS = {"website": "", "form_elapsed_ms": 5000}
 
 ORDER_NUMBER_PATTERN = re.compile(r"^GG-\d{8}-\d{4}$")
 
-# Storefront shipping: flat fee at or below the threshold, free above it.
+# Storefront shipping: flat fee below the threshold, free at or above it.
 SHIPPING_FEE = Decimal("50000.00")
 FREE_SHIPPING_ABOVE = Decimal("500000.00")
 
 
 def _expected_total(subtotal: Decimal) -> str:
-    shipping = Decimal("0.00") if subtotal > FREE_SHIPPING_ABOVE else SHIPPING_FEE
+    shipping = Decimal("0.00") if subtotal >= FREE_SHIPPING_ABOVE else SHIPPING_FEE
     return str((subtotal + shipping).quantize(Decimal("0.01")))
 
 
@@ -2419,8 +2419,8 @@ async def test_quote_matches_the_order_checkout_creates(
 @pytest.mark.parametrize(
     ("price_vi", "shipping_fee", "amount_to_free"),
     [
-        pytest.param(Decimal("499000.00"), "50000.00", "1001.00", id="499000"),
-        pytest.param(Decimal("500000.00"), "50000.00", "1.00", id="500000-still-pays"),
+        pytest.param(Decimal("499000.00"), "50000.00", "1000.00", id="499000"),
+        pytest.param(Decimal("500000.00"), "0.00", "0.00", id="500000-free"),
         pytest.param(Decimal("500000.50"), "0.00", "0.00", id="500000.50-free"),
     ],
 )

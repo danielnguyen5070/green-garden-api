@@ -22,7 +22,7 @@ import enum
 import uuid
 from collections import defaultdict
 from datetime import UTC, date, datetime, time, timedelta
-from decimal import ROUND_FLOOR, Decimal
+from decimal import Decimal
 from typing import Any, NamedTuple, Sequence
 
 from fastapi import status
@@ -54,11 +54,9 @@ _MONEY_QUANTUM = Decimal("0.01")
 _MAX_TOTAL_AMOUNT = Decimal("9999999999.99")
 _ZERO = Decimal("0.00")
 
-# Shipping: free above the threshold, flat fee at or below it.
-# Exactly 500,000 VND still pays, free shipping starts at 500,000.01 VND.
+# Shipping: flat fee below the threshold; free at or above it (>= 500,000 VND).
 FREE_SHIPPING_ABOVE = Decimal("500000.00")
 SHIPPING_FEE = Decimal("50000.00")
-_ONE_DONG = Decimal("1")
 
 # Forward-only pipeline; cancellation is allowed from any non-terminal status.
 _STATUS_FLOW: tuple[OrderStatus, ...] = (
@@ -210,16 +208,15 @@ def _unit_price(plant: Plant, pot_size: PlantPotSize | None) -> Decimal:
 
 
 def shipping_fee_for(subtotal: Decimal) -> Decimal:
-    """Flat delivery fee, waived above the free-shipping threshold."""
-    return _ZERO if subtotal > FREE_SHIPPING_ABOVE else SHIPPING_FEE
+    """Flat delivery fee, waived when the subtotal reaches the free-shipping threshold."""
+    return _ZERO if subtotal >= FREE_SHIPPING_ABOVE else SHIPPING_FEE
 
 
 def amount_to_free_shipping(subtotal: Decimal) -> Decimal:
-    """Smallest whole-dong amount that still has to be added for free shipping."""
-    if subtotal > FREE_SHIPPING_ABOVE:
+    """Amount still needed to reach the free-shipping threshold (inclusive)."""
+    if subtotal >= FREE_SHIPPING_ABOVE:
         return _ZERO
-    remaining = (FREE_SHIPPING_ABOVE - subtotal).to_integral_value(rounding=ROUND_FLOOR)
-    return _quantize(remaining + _ONE_DONG)
+    return _quantize(FREE_SHIPPING_ABOVE - subtotal)
 
 
 def _resolve_pot_size(
