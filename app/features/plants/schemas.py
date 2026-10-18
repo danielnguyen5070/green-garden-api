@@ -1,4 +1,4 @@
-"""Plant, plant media and pot size request/response schemas (admin + public storefront)."""
+"""Plant and plant media request/response schemas (admin + public storefront)."""
 
 from __future__ import annotations
 
@@ -30,9 +30,6 @@ __all__ = [
     "PlantImageUpdate",
     "PlantListItem",
     "PlantListResponse",
-    "PlantPotSizeCreate",
-    "PlantPotSizeResponse",
-    "PlantPotSizeUpdate",
     "PlantResponse",
     "PlantSpaceRequirement",
     "PlantStatusUpdate",
@@ -45,7 +42,6 @@ __all__ = [
     "PublicPlantListItem",
     "PublicPlantListResponse",
     "PublicPlantSearchResponse",
-    "PublicPotSizeSummary",
 ]
 
 
@@ -119,74 +115,6 @@ class PublicPlantImage(BaseModel):
     type: PlantImageType
     alt_text: str | None
     sort_order: int
-
-
-class PlantPotSizeCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-    # DB enforces price_adjustment >= 0 (ck_plant_pot_sizes_price_adjustment_non_negative)
-    price_adjustment: Decimal = Field(
-        default=Decimal("0.00"), ge=0, max_digits=12, decimal_places=2
-    )
-    # Applied on top of the plant's Vietnamese price; omit when there is none
-    price_adjustment_vi: Decimal | None = Field(
-        default=None, ge=0, max_digits=12, decimal_places=2
-    )
-    sort_order: int = Field(default=0, ge=0)
-    is_active: bool = True
-
-    @field_validator("name")
-    @classmethod
-    def strip_name(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError("Name is required")
-        return stripped
-
-
-class PlantPotSizeUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=100)
-    price_adjustment: Decimal | None = Field(
-        default=None, ge=0, max_digits=12, decimal_places=2
-    )
-    price_adjustment_vi: Decimal | None = Field(
-        default=None, ge=0, max_digits=12, decimal_places=2
-    )
-    sort_order: int | None = Field(default=None, ge=0)
-    is_active: bool | None = None
-
-    @field_validator("name")
-    @classmethod
-    def strip_name(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError("Name cannot be empty")
-        return stripped
-
-
-class PublicPotSizeSummary(BaseModel):
-    """The pot size a catalogue card sells by default, priced in VND."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    name: str
-    price_adjustment_vi: Decimal | None
-
-
-class PlantPotSizeResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    plant_id: UUID
-    name: str
-    price_adjustment: Decimal
-    price_adjustment_vi: Decimal | None
-    sort_order: int
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
 
 
 class PlantCreate(BaseModel):
@@ -350,7 +278,7 @@ class PlantStatusUpdate(BaseModel):
 
 
 class PlantListItem(BaseModel):
-    """Lightweight row for plant listings (no images / pot sizes)."""
+    """Lightweight row for plant listings (no images)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -372,7 +300,7 @@ class PlantListItem(BaseModel):
 
 
 class PlantResponse(BaseModel):
-    """Full plant detail including category, images and pot sizes."""
+    """Full plant detail including category and images."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -406,7 +334,6 @@ class PlantResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     images: list[PlantImageResponse] = []
-    pot_sizes: list[PlantPotSizeResponse] = []
 
 
 class PlantListResponse(BaseModel):
@@ -439,8 +366,6 @@ class PublicPlantListItem(BaseModel):
     is_featured: bool
     category: CategorySummary | None = None
     images: list[PublicPlantImage] = []
-    # First active pot size by `sort_order`: what "Add to cart" on a card sells.
-    default_pot_size: PublicPotSizeSummary | None = None
     updated_at: datetime
 
 
@@ -489,4 +414,3 @@ class PublicPlantDetail(BaseModel):
     beginner_friendly: bool | None
     category: CategorySummary | None = None
     images: list[PlantImageResponse] = []
-    pot_sizes: list[PlantPotSizeResponse] = []

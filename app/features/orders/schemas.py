@@ -84,20 +84,6 @@ class OrderCustomerCreate(StorefrontOrderCustomer):
 class OrderItemCreate(BaseModel):
     plant_id: UUID
     quantity: int = Field(ge=1)
-    pot_size_id: UUID | None = None
-    pot_size: str | None = Field(
-        default=None,
-        max_length=100,
-        description="Deprecated: pot size name. Send `pot_size_id` instead.",
-    )
-
-    @field_validator("pot_size")
-    @classmethod
-    def strip_pot_size(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        stripped = value.strip()
-        return stripped or None
 
 
 class OrderCreate(BaseModel):
@@ -187,7 +173,6 @@ class OrderItemResponse(BaseModel):
     plant_name: str
     quantity: int
     unit_price: Decimal
-    pot_size: str | None
 
 
 class OrderResponse(BaseModel):
@@ -249,7 +234,6 @@ class StorefrontQuoteItem(BaseModel):
 
     plant_id: UUID
     quantity: int = Field(ge=1, le=_MAX_QUOTE_QUANTITY)
-    pot_size_id: UUID | None = None
 
 
 class StorefrontQuoteRequest(BaseModel):
@@ -260,20 +244,18 @@ class StorefrontQuoteLine(BaseModel):
     """
     One priced cart line.
 
-    `available` is false when the plant is unknown, inactive, has no VND price
-    or the pot size is no longer on sale; such a line costs nothing and the
-    catalogue fields may be null. `max_quantity` is the plant's current stock.
+    `available` is false when the plant is unknown, inactive or has no VND
+    price; such a line costs nothing and the catalogue fields may be null.
+    `max_quantity` is the plant's current stock.
     """
 
     plant_id: UUID
-    pot_size_id: UUID | None
     quantity: int
     available: bool
     slug: str | None
     name: str | None
     name_vi: str | None
     image_url: str | None
-    pot_size_name: str | None
     unit_price: Decimal
     line_total: Decimal
     max_quantity: int

@@ -191,16 +191,6 @@
       "answer_vi": "Tùy giống, phần lớn cây giống cao khoảng 40–80cm khi gửi đi. Chiều cao và đặc điểm cụ thể được ghi trong phần mô tả của từng cây."
     },
     {
-      "id": "potSize",
-      "category": "plants",
-      "category_label": "Seedlings",
-      "category_label_vi": "Cây giống",
-      "question": "Can I choose a bigger or smaller plant?",
-      "answer": "Yes. Where size options are offered, you can choose one on the product page before adding the plant to your cart. The price updates to match the size you pick.",
-      "question_vi": "Có chọn được cây lớn hay cây nhỏ không?",
-      "answer_vi": "Có. Với những cây có nhiều lựa chọn, bạn chọn cỡ ngay trên trang sản phẩm trước khi thêm vào giỏ. Giá hiển thị theo đúng cỡ bạn chọn."
-    },
-    {
       "id": "plantsWithPots",
       "category": "plants",
       "category_label": "Seedlings",

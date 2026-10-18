@@ -16,7 +16,6 @@ from app.db.registry import (
     Plant,
     PlantImage,
     PlantImageType,
-    PlantPotSize,
 )
 
 
@@ -94,36 +93,6 @@ async def test_plant_image_references_plant(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_pot_size_references_plant(db_session: AsyncSession) -> None:
-    category = Category(name="Pots", slug="pots-size-test")
-    db_session.add(category)
-    await db_session.flush()
-
-    plant = Plant(
-        category_id=category.id,
-        name="Fiddle Leaf",
-        slug="fiddle-leaf-pot-test",
-        price=Decimal("80.00"),
-        sku="SKU-FLF-POT",
-    )
-    db_session.add(plant)
-    await db_session.flush()
-
-    pot = PlantPotSize(
-        plant_id=plant.id,
-        name="Large",
-        price_adjustment=Decimal("20.00"),
-        price_adjustment_vi=Decimal("100000.00"),
-    )
-    db_session.add(pot)
-    await db_session.flush()
-
-    assert pot.plant_id == plant.id
-    assert pot.price_adjustment == Decimal("20.00")
-    assert pot.price_adjustment_vi == Decimal("100000.00")
-
-
-@pytest.mark.asyncio
 async def test_customer_phone_unique(db_session: AsyncSession) -> None:
     first = Customer(phone="+84901111111", name="Alice")
     db_session.add(first)
@@ -191,7 +160,6 @@ async def test_order_item_references_order_and_plant(db_session: AsyncSession) -
         plant_name="Snake Plant",
         quantity=2,
         unit_price=Decimal("35.00"),
-        pot_size="Medium",
     )
     db_session.add(item)
     await db_session.flush()
@@ -199,7 +167,6 @@ async def test_order_item_references_order_and_plant(db_session: AsyncSession) -
     assert item.order_id == order.id
     assert item.plant_id == plant.id
     assert item.plant_name == "Snake Plant"
-    assert item.pot_size == "Medium"
 
 
 @pytest.mark.asyncio

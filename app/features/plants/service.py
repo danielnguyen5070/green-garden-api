@@ -1,4 +1,4 @@
-"""Plant, plant image and pot size business logic."""
+"""Plant and plant image business logic."""
 
 from __future__ import annotations
 
@@ -21,7 +21,6 @@ from app.features.plants.models import (
     PlantGrowthRate,
     PlantImage,
     PlantImageType,
-    PlantPotSize,
     PlantSlugHistory,
     PlantSpaceRequirement,
     PlantSunlight,
@@ -56,13 +55,6 @@ class PlantImageNotFoundError(NotFoundError):
     message = "Plant image not found"
 
 
-class PlantPotSizeNotFoundError(NotFoundError):
-    """Raised when a pot size does not exist or belongs to another plant."""
-
-    error_code = ErrorCode.PLANT_POT_SIZE_NOT_FOUND
-    message = "Pot size not found"
-
-
 class SlugConflictError(ConflictError):
     """Raised when a plant slug is already used."""
 
@@ -78,31 +70,25 @@ class SkuConflictError(ConflictError):
 
 
 def _detail_options() -> tuple[Any, ...]:
-    """Eager-load category, images and pot sizes; never walk back to plants."""
+    """Eager-load category and images; never walk back to plants."""
     return (
         selectinload(Plant.category).noload(Category.plants),
         selectinload(Plant.images),
-        selectinload(Plant.pot_sizes),
         noload(Plant.order_items),
     )
 
 
 def _list_options(*, with_images: bool = False) -> tuple[Any, ...]:
     """
-    Listings only need the category — skip media and variant collections.
+    Listings only need the category — skip media by default.
 
-    The storefront catalogue also renders media and the default pot size, so it
-    opts into images and pot sizes with `selectinload`: one extra `IN` query
-    each for the whole page instead of one query per plant.
+    The storefront catalogue also renders media, so it opts into images with
+    `selectinload`: one extra `IN` query for the whole page instead of one
+    query per plant.
     """
     return (
         selectinload(Plant.category).noload(Category.plants),
         selectinload(Plant.images) if with_images else noload(Plant.images),
-        (
-            selectinload(Plant.pot_sizes).noload(PlantPotSize.plant)
-            if with_images
-            else noload(Plant.pot_sizes)
-        ),
         noload(Plant.order_items),
     )
 
@@ -623,128 +609,9 @@ async def delete_plant_image(
     notify_storefront("plants")
 
 
-async def list_plant_pot_sizes(
-    session: AsyncSession,
-    plant_id: uuid.UUID,
-) -> list[PlantPotSize]:
-    await _ensure_plant_exists(session, plant_id)
-    result = await session.execute(
-        select(PlantPotSize)
-        .where(PlantPotSize.plant_id == plant_id)
-        .options(noload(PlantPotSize.plant))
-        .order_by(PlantPotSize.sort_order, PlantPotSize.name)
-    )
-    return list(result.scalars().all())
-
-
-async def _get_plant_pot_size(
-    session: AsyncSession,
-    plant_id: uuid.UUID,
-    size_id: uuid.UUID,
-) -> PlantPotSize:
-    await _ensure_plant_exists(session, plant_id)
-    result = await session.execute(
-        select(PlantPotSize)
-        .where(PlantPotSize.id == size_id, PlantPotSize.plant_id == plant_id)
-        .options(noload(PlantPotSize.plant))
-    )
-    pot_size = result.scalar_one_or_none()
-    if pot_size is None:
-        raise PlantPotSizeNotFoundError("Pot size not found for this plant")
-    return pot_size
-
-
-async def add_plant_pot_size(
-    session: AsyncSession,
-    plant_id: uuid.UUID,
-    *,
-    name: str,
-    price_adjustment: Decimal,
-    price_adjustment_vi: Decimal | None,
-    sort_order: int,
-    is_active: bool,
-) -> PlantPotSize:
-    await _ensure_plant_exists(session, plant_id)
-    pot_size = PlantPotSize(
-        plant_id=plant_id,
-        name=name,
-        price_adjustment=price_adjustment,
-        price_adjustment_vi=price_adjustment_vi,
-        sort_order=sort_order,
-        is_active=is_active,
-    )
-    session.add(pot_size)
-    try:
-        await session.commit()
-    except Exception:
-        await session.rollback()
-        raise
-    notify_storefront("plants")
-    await session.refresh(pot_size)
-    return pot_size
-
-
-async def update_plant_pot_size(
-    session: AsyncSession,
-    plant_id: uuid.UUID,
-    size_id: uuid.UUID,
-    *,
-    name: str | None = None,
-    price_adjustment: Decimal | None = None,
-    price_adjustment_vi: Decimal | None = None,
-    sort_order: int | None = None,
-    is_active: bool | None = None,
-    price_adjustment_vi_provided: bool = False,
-) -> PlantPotSize:
-    pot_size = await _get_plant_pot_size(session, plant_id, size_id)
-
-    if name is not None:
-        pot_size.name = name
-    if price_adjustment is not None:
-        pot_size.price_adjustment = price_adjustment
-    if price_adjustment_vi_provided:
-        pot_size.price_adjustment_vi = price_adjustment_vi
-    if sort_order is not None:
-        pot_size.sort_order = sort_order
-    if is_active is not None:
-        pot_size.is_active = is_active
-
-    try:
-        await session.commit()
-    except Exception:
-        await session.rollback()
-        raise
-    notify_storefront("plants")
-    await session.refresh(pot_size)
-    return pot_size
-
-
-async def delete_plant_pot_size(
-    session: AsyncSession,
-    plant_id: uuid.UUID,
-    size_id: uuid.UUID,
-) -> None:
-    pot_size = await _get_plant_pot_size(session, plant_id, size_id)
-    await session.delete(pot_size)
-    try:
-        await session.commit()
-    except Exception:
-        await session.rollback()
-        raise
-    notify_storefront("plants")
-
-
 def sorted_images(plant: Plant) -> list[PlantImage]:
     """Media in display order: `sort_order` first, oldest first on a tie."""
     return sorted(plant.images, key=lambda image: (image.sort_order, image.created_at))
-
-
-def active_pot_sizes(plant: Plant) -> list[PlantPotSize]:
-    """Pot sizes on sale, default first — the same order checkout resolves."""
-    return sorted(
-        (size for size in plant.pot_sizes if size.is_active),
-        key=lambda size: (size.sort_order, size.name),
-    )
 
 
 def primary_image_url(plant: Plant) -> str | None:

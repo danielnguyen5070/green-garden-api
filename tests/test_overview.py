@@ -42,7 +42,6 @@ _ORDER_SEQUENCE = count(1)
 _SHOP_TABLES = (
     "order_items",
     "orders",
-    "plant_pot_sizes",
     "plant_images",
     "plants",
     "customers",

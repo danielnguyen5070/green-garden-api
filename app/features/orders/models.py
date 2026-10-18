@@ -166,7 +166,6 @@ class OrderItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     plant_name: Mapped[str] = mapped_column(String(255), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    pot_size: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     order: Mapped[Order] = relationship("Order", back_populates="items")
     plant: Mapped[Plant] = relationship("Plant", back_populates="order_items")

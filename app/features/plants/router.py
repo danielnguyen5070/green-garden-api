@@ -17,9 +17,6 @@ from app.features.plants.schemas import (
     PlantImageUpdate,
     PlantListItem,
     PlantListResponse,
-    PlantPotSizeCreate,
-    PlantPotSizeResponse,
-    PlantPotSizeUpdate,
     PlantResponse,
     PlantStatusUpdate,
     PlantUpdate,
@@ -28,18 +25,14 @@ from app.features.plants.service import (
     SortField,
     SortOrder,
     add_plant_image,
-    add_plant_pot_size,
     create_plant,
     delete_plant_image,
-    delete_plant_pot_size,
     get_plant,
     list_plant_images,
-    list_plant_pot_sizes,
     list_plants,
     set_plant_status,
     update_plant,
     update_plant_image,
-    update_plant_pot_size,
 )
 
 router = APIRouter(
@@ -322,89 +315,4 @@ async def remove_plant_image(
 ) -> Response:
     """Delete only the image record; the plant is untouched."""
     await delete_plant_image(db, plant_id, image_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get(
-    "/{plant_id}/pot-sizes",
-    response_model=list[PlantPotSizeResponse],
-    summary="List plant pot sizes",
-    responses=_NOT_FOUND,
-)
-async def get_plant_pot_sizes(
-    plant_id: UUID,
-    db: AsyncSession = Depends(get_db),
-) -> list[PlantPotSizeResponse]:
-    """Pot size variants for a plant, ordered by `sort_order`."""
-    pot_sizes = await list_plant_pot_sizes(db, plant_id)
-    return [PlantPotSizeResponse.model_validate(size) for size in pot_sizes]
-
-
-@router.post(
-    "/{plant_id}/pot-sizes",
-    response_model=PlantPotSizeResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Add plant pot size",
-    responses=_NOT_FOUND,
-)
-async def post_plant_pot_size(
-    plant_id: UUID,
-    payload: PlantPotSizeCreate,
-    db: AsyncSession = Depends(get_db),
-) -> PlantPotSizeResponse:
-    """Create a pot size variant with a non-negative price adjustment."""
-    pot_size = await add_plant_pot_size(
-        db,
-        plant_id,
-        name=payload.name,
-        price_adjustment=payload.price_adjustment,
-        price_adjustment_vi=payload.price_adjustment_vi,
-        sort_order=payload.sort_order,
-        is_active=payload.is_active,
-    )
-    return PlantPotSizeResponse.model_validate(pot_size)
-
-
-@router.patch(
-    "/{plant_id}/pot-sizes/{size_id}",
-    response_model=PlantPotSizeResponse,
-    summary="Update plant pot size",
-    responses=_NOT_FOUND,
-)
-async def patch_plant_pot_size(
-    plant_id: UUID,
-    size_id: UUID,
-    payload: PlantPotSizeUpdate,
-    db: AsyncSession = Depends(get_db),
-) -> PlantPotSizeResponse:
-    """Partial update of a pot size that must belong to the given plant."""
-    pot_size = await update_plant_pot_size(
-        db,
-        plant_id,
-        size_id,
-        name=payload.name,
-        price_adjustment=payload.price_adjustment,
-        price_adjustment_vi=payload.price_adjustment_vi,
-        sort_order=payload.sort_order,
-        is_active=payload.is_active,
-        price_adjustment_vi_provided=(
-            "price_adjustment_vi" in payload.model_fields_set
-        ),
-    )
-    return PlantPotSizeResponse.model_validate(pot_size)
-
-
-@router.delete(
-    "/{plant_id}/pot-sizes/{size_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete plant pot size",
-    responses=_NOT_FOUND,
-)
-async def remove_plant_pot_size(
-    plant_id: UUID,
-    size_id: UUID,
-    db: AsyncSession = Depends(get_db),
-) -> Response:
-    """Delete only the pot size record; the plant is untouched."""
-    await delete_plant_pot_size(db, plant_id, size_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

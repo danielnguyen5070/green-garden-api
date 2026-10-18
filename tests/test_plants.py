@@ -174,7 +174,6 @@ async def test_create_plant_success(
     assert body["og_image_url"] is None
     assert body["category"]["id"] == str(test_category.id)
     assert body["images"] == []
-    assert body["pot_sizes"] == []
 
 
 @pytest.mark.asyncio
@@ -559,7 +558,6 @@ async def test_get_plant_detail(
     assert body["id"] == created["id"]
     assert body["category"]["slug"] == test_category.slug
     assert body["images"] == []
-    assert body["pot_sizes"] == []
 
 
 @pytest.mark.asyncio
@@ -823,113 +821,6 @@ async def test_plant_images_missing_plant(
     created = await client.post(
         f"{PLANTS_PREFIX}/{missing}/images",
         json={"url": "https://cdn.example.com/a.jpg", "type": "image"},
-    )
-    assert created.status_code == 404
-
-
-# --------------------------------------------------------------------------
-# Pot sizes
-# --------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_plant_pot_size_crud(
-    client: AsyncClient,
-    active_admin: Admin,
-    test_category: Category,
-) -> None:
-    await _login(client, active_admin)
-    plant = await _create_plant(client, test_category)
-
-    created = await client.post(
-        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes",
-        json={
-            "name": "Size M",
-            "price_adjustment": "50000.00",
-            "sort_order": 1,
-            "is_active": True,
-        },
-    )
-    assert created.status_code == 201
-    pot_size = created.json()
-    assert pot_size["plant_id"] == plant["id"]
-    assert pot_size["name"] == "Size M"
-    assert Decimal(pot_size["price_adjustment"]) == Decimal("50000.00")
-
-    listed = await client.get(f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes")
-    assert [item["id"] for item in listed.json()] == [pot_size["id"]]
-
-    updated = await client.patch(
-        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes/{pot_size['id']}",
-        json={"name": "Size L", "price_adjustment": "0.00", "is_active": False},
-    )
-    assert updated.status_code == 200
-    assert updated.json()["name"] == "Size L"
-    assert Decimal(updated.json()["price_adjustment"]) == Decimal("0.00")
-    assert updated.json()["is_active"] is False
-
-    deleted = await client.delete(
-        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes/{pot_size['id']}"
-    )
-    assert deleted.status_code == 204
-    assert (await client.get(f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes")).json() == []
-
-
-@pytest.mark.asyncio
-async def test_plant_pot_size_requires_name(
-    client: AsyncClient,
-    active_admin: Admin,
-    test_category: Category,
-) -> None:
-    await _login(client, active_admin)
-    plant = await _create_plant(client, test_category)
-    response = await client.post(
-        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes",
-        json={"name": "   ", "price_adjustment": "1000.00"},
-    )
-    assert response.status_code == 422
-
-
-@pytest.mark.asyncio
-async def test_plant_pot_size_must_belong_to_plant(
-    client: AsyncClient,
-    active_admin: Admin,
-    test_category: Category,
-) -> None:
-    await _login(client, active_admin)
-    owner = await _create_plant(client, test_category)
-    other = await _create_plant(client, test_category)
-
-    created = await client.post(
-        f"{PLANTS_PREFIX}/{owner['id']}/pot-sizes",
-        json={"name": "Size S", "price_adjustment": "0.00"},
-    )
-    size_id = created.json()["id"]
-
-    patched = await client.patch(
-        f"{PLANTS_PREFIX}/{other['id']}/pot-sizes/{size_id}",
-        json={"name": "Hijack"},
-    )
-    assert patched.status_code == 404
-
-    deleted = await client.delete(f"{PLANTS_PREFIX}/{other['id']}/pot-sizes/{size_id}")
-    assert deleted.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_plant_pot_sizes_missing_plant(
-    client: AsyncClient,
-    active_admin: Admin,
-) -> None:
-    await _login(client, active_admin)
-    missing = uuid4()
-
-    listed = await client.get(f"{PLANTS_PREFIX}/{missing}/pot-sizes")
-    assert listed.status_code == 404
-
-    created = await client.post(
-        f"{PLANTS_PREFIX}/{missing}/pot-sizes",
-        json={"name": "Size M", "price_adjustment": "0.00"},
     )
     assert created.status_code == 404
 
@@ -1422,102 +1313,6 @@ async def test_plant_status_keeps_vietnamese_fields(
     assert Decimal(response.json()["price_vi"]) == Decimal("650000.00")
 
 
-@pytest.mark.asyncio
-async def test_pot_size_vietnamese_price_adjustment(
-    client: AsyncClient,
-    active_admin: Admin,
-    test_category: Category,
-) -> None:
-    """Both locales keep their own adjustment: 25+5 AUD and 650k+100k VND."""
-    await _login(client, active_admin)
-    plant = await _create_plant(
-        client,
-        test_category,
-        price="25.00",
-        price_vi="650000.00",
-    )
-
-    created = await client.post(
-        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes",
-        json={
-            "name": "Large",
-            "price_adjustment": "5.00",
-            "price_adjustment_vi": "100000.00",
-        },
-    )
-    assert created.status_code == 201
-    pot_size = created.json()
-    assert Decimal(pot_size["price_adjustment"]) == Decimal("5.00")
-    assert Decimal(pot_size["price_adjustment_vi"]) == Decimal("100000.00")
-
-    assert Decimal(plant["price"]) + Decimal(pot_size["price_adjustment"]) == Decimal(
-        "30.00"
-    )
-    assert Decimal(plant["price_vi"]) + Decimal(
-        pot_size["price_adjustment_vi"]
-    ) == Decimal("750000.00")
-
-    listed = await client.get(f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes")
-    rows = listed.json()
-    assert [Decimal(row["price_adjustment"]) for row in rows] == [Decimal("5.00")]
-    assert [Decimal(row["price_adjustment_vi"]) for row in rows] == [
-        Decimal("100000.00")
-    ]
-
-    updated = await client.patch(
-        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes/{pot_size['id']}",
-        json={"price_adjustment_vi": "120000.00"},
-    )
-    assert updated.status_code == 200
-    # The default-locale adjustment is unaffected by the Vietnamese update
-    assert Decimal(updated.json()["price_adjustment"]) == Decimal("5.00")
-    assert Decimal(updated.json()["price_adjustment_vi"]) == Decimal("120000.00")
-
-    cleared = await client.patch(
-        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes/{pot_size['id']}",
-        json={"price_adjustment_vi": None},
-    )
-    assert cleared.status_code == 200
-    assert cleared.json()["price_adjustment_vi"] is None
-
-
-@pytest.mark.asyncio
-async def test_pot_size_without_vietnamese_price_adjustment(
-    client: AsyncClient,
-    active_admin: Admin,
-    test_category: Category,
-) -> None:
-    await _login(client, active_admin)
-    plant = await _create_plant(client, test_category)
-
-    created = await client.post(
-        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes",
-        json={"name": "Small", "price_adjustment": "5.00"},
-    )
-    assert created.status_code == 201
-    assert created.json()["price_adjustment_vi"] is None
-
-
-@pytest.mark.asyncio
-async def test_pot_size_negative_vietnamese_price_adjustment(
-    client: AsyncClient,
-    active_admin: Admin,
-    test_category: Category,
-) -> None:
-    await _login(client, active_admin)
-    plant = await _create_plant(client, test_category)
-
-    response = await client.post(
-        f"{PLANTS_PREFIX}/{plant['id']}/pot-sizes",
-        json={
-            "name": "Large",
-            "price_adjustment": "5.00",
-            "price_adjustment_vi": "-1.00",
-        },
-    )
-    assert response.status_code == 422
-
-
 # --------------------------------------------------------------------------
 # Public storefront
 # --------------------------------------------------------------------------
@@ -1919,15 +1714,13 @@ async def test_public_list_image_queries_do_not_grow_with_row_count(
         # Touch the collections the storefront serializes: already loaded, so
         # a lazy load here would show up as an extra statement.
         loaded = [len(plant.images) for plant in items]
-        pot_sizes = [len(plant.pot_sizes) for plant in items]
     finally:
         event.remove(Engine, "before_cursor_execute", _record)
 
     assert len(items) == 5
     assert loaded == [3, 3, 3, 3, 3]
-    assert pot_sizes == [0, 0, 0, 0, 0]
-    # count + rows + categories + images + pot sizes (for `default_pot_size`)
-    assert len(statements) == 5
+    # count + rows + categories + images
+    assert len(statements) == 4
 
 
 @pytest.mark.asyncio
@@ -1981,37 +1774,10 @@ async def test_queries_do_not_grow_with_row_count(
     assert len(items) == 5
     # count + rows + category
     assert list_queries <= 3
-    # plant + category + images + pot sizes
-    assert detail_queries <= 4
+    # plant + category + images
+    assert detail_queries <= 3
     assert detail.category is not None
     assert len(detail.images) == 1
-
-
-@pytest.mark.asyncio
-async def test_public_detail_only_returns_active_pot_sizes(
-    client: AsyncClient,
-    active_admin: Admin,
-    test_category: Category,
-    test_db_session: AsyncSession,
-) -> None:
-    plant = await _seed_plant(test_db_session, test_category, is_active=True)
-
-    await _login(client, active_admin)
-    visible = await client.post(
-        f"{PLANTS_PREFIX}/{plant.id}/pot-sizes",
-        json={"name": "Visible", "price_adjustment": "0.00", "is_active": True},
-    )
-    await client.post(
-        f"{PLANTS_PREFIX}/{plant.id}/pot-sizes",
-        json={"name": "Hidden", "price_adjustment": "0.00", "is_active": False},
-    )
-    client.cookies.clear()
-
-    response = await client.get(f"{STOREFRONT_PREFIX}/plants/{plant.slug}")
-    assert response.status_code == 200
-    names = [size["name"] for size in response.json()["pot_sizes"]]
-    assert names == ["Visible"]
-    assert visible.status_code == 201
 
 
 # --------------------------------------------------------------------------

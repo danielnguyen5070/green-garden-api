@@ -122,13 +122,11 @@ async def get_order_detail(
     description=(
         "Create an order for the given phone number, reusing the existing "
         "customer or creating a new one. Everything is priced in VND, exactly "
-        "like the storefront: unit prices from `plants.price_vi` plus the "
-        "selected pot size's `price_adjustment_vi`, and the shipping fee "
-        "(50,000 VND unless the subtotal is above 500,000 VND) recorded as "
-        "`shipping_fee` — money sent by the client is ignored. Pot sizes are "
-        "picked by `pot_size_id` (or the deprecated `pot_size` name); without "
-        "either, the plant's first active pot size is used. Stock is verified "
-        "and deducted in the same transaction; the order starts as `pending`."
+        "like the storefront: unit prices from `plants.price_vi`, and the "
+        "shipping fee (50,000 VND unless the subtotal is above 500,000 VND) "
+        "recorded as `shipping_fee` — money sent by the client is ignored. "
+        "Stock is verified and deducted in the same transaction; the order "
+        "starts as `pending`."
     ),
     responses={**_NOT_FOUND, **_BAD_REQUEST, **_CONFLICT},
 )
@@ -151,8 +149,6 @@ async def post_order(
             OrderItemInput(
                 plant_id=item.plant_id,
                 quantity=item.quantity,
-                pot_size_id=item.pot_size_id,
-                pot_size=item.pot_size,
             )
             for item in payload.items
         ],

@@ -84,15 +84,14 @@ async def get_shipping_policy() -> ShippingPolicyResponse:
     summary="Price a cart (public)",
     description=(
         "Prices cart lines exactly as checkout would, without creating an "
-        "order, locking rows or touching stock. Send only `plant_id`, "
-        "`pot_size_id` and `quantity`; the backend returns the unit price, "
-        "line total, localized names and image for every line, plus the "
-        "subtotal, shipping fee and total in VND.\n\n"
-        "A line that cannot be sold (unknown or inactive plant, no VND price, "
-        "pot size no longer on sale) comes back with `available: false` and "
-        "adds nothing to the totals, so the cart can flag it instead of "
-        "failing. `max_quantity` is the plant's current stock; checkout "
-        "rejects a quantity above it."
+        "order, locking rows or touching stock. Send only `plant_id` and "
+        "`quantity`; the backend returns the unit price, line total, localized "
+        "names and image for every line, plus the subtotal, shipping fee and "
+        "total in VND.\n\n"
+        "A line that cannot be sold (unknown or inactive plant, no VND price) "
+        "comes back with `available: false` and adds nothing to the totals, "
+        "so the cart can flag it instead of failing. `max_quantity` is the "
+        "plant's current stock; checkout rejects a quantity above it."
     ),
     responses=RATE_LIMITED_RESPONSES,
 )
@@ -109,7 +108,6 @@ async def post_storefront_quote(
             OrderItemInput(
                 plant_id=item.plant_id,
                 quantity=item.quantity,
-                pot_size_id=item.pot_size_id,
             )
             for item in payload.items
         ],
@@ -123,16 +121,12 @@ async def post_storefront_quote(
         lines.append(
             StorefrontQuoteLine(
                 plant_id=line.item.plant_id,
-                pot_size_id=(
-                    line.pot_size.id if line.pot_size is not None else line.item.pot_size_id
-                ),
                 quantity=line.item.quantity,
                 available=line.available,
                 slug=plant.slug if visible else None,
                 name=plant.name if visible else None,
                 name_vi=plant.name_vi if visible else None,
                 image_url=primary_image_url(plant) if visible else None,
-                pot_size_name=line.pot_size.name if line.pot_size is not None else None,
                 unit_price=line.unit_price,
                 line_total=line.line_total,
                 max_quantity=plant.stock if visible and line.available else 0,
@@ -171,15 +165,12 @@ async def post_storefront_quote(
         "number reuses the existing customer (keeping the name already on "
         "file), an unknown one creates a customer.\n\n"
         "Everything is priced in VND: item names come from `plants.name_vi` "
-        "(falling back to `name`), unit prices from `plants.price_vi` plus the "
-        "pot size's `price_adjustment_vi`. Pot sizes are picked by "
-        "`pot_size_id` (or the deprecated `pot_size` name); without either, "
-        "the plant's first active pot size is used. The subtotal is the sum of "
-        "`unit_price × quantity`, shipping is 50,000 VND unless the subtotal "
-        "is above 500,000 VND, and `total_amount` is subtotal plus shipping. "
-        "The response carries `currency`, `subtotal_amount`, `shipping_fee` "
-        "and `total_amount` — prices or totals in the request body are "
-        "ignored.\n\n"
+        "(falling back to `name`), unit prices from `plants.price_vi`. The "
+        "subtotal is the sum of `unit_price × quantity`, shipping is 50,000 "
+        "VND unless the subtotal is above 500,000 VND, and `total_amount` is "
+        "subtotal plus shipping. The response carries `currency`, "
+        "`subtotal_amount`, `shipping_fee` and `total_amount` — prices or "
+        "totals in the request body are ignored.\n\n"
         "Customer, order, item snapshots and the stock deduction commit in one "
         "transaction with the plant rows locked, so a rejected line leaves no "
         "partial order and no stock movement behind. New orders start as "
@@ -202,7 +193,7 @@ async def post_storefront_quote(
             )
         },
         status.HTTP_404_NOT_FOUND: {
-            "description": "Plant or selected pot size does not exist"
+            "description": "Plant does not exist"
         },
         status.HTTP_409_CONFLICT: {
             "description": (
@@ -241,8 +232,6 @@ async def post_storefront_order(
             OrderItemInput(
                 plant_id=item.plant_id,
                 quantity=item.quantity,
-                pot_size_id=item.pot_size_id,
-                pot_size=item.pot_size,
             )
             for item in payload.items
         ],

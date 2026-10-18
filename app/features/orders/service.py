@@ -6,10 +6,9 @@ price as a snapshot so the order stays historically correct after the plant is
 renamed, repriced or deactivated.
 
 VND is the only transaction currency. Every order — admin panel or storefront —
-is priced from `plants.price_vi` plus `plant_pot_sizes.price_adjustment_vi`,
-with the same shipping rule, and records its subtotal, shipping fee and total.
-`quote_order` runs the same pricing without writing anything, so the cart shows
-exactly what checkout will charge.
+is priced from `plants.price_vi` with the same shipping rule, and records its
+subtotal, shipping fee and total. `quote_order` runs the same pricing without
+writing anything, so the cart shows exactly what checkout will charge.
 
 Creating an order (customer upsert, order, items and stock deduction) happens in
 a single transaction, and stock is deducted with `SELECT ... FOR UPDATE` so two
@@ -25,7 +24,6 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, NamedTuple, Sequence
 
-from fastapi import status
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
@@ -42,7 +40,7 @@ from app.features.orders.models import (
     OrderStatus,
     PaymentMethod,
 )
-from app.features.plants.models import Plant, PlantPotSize
+from app.features.plants.models import Plant
 from app.features.plants.service import PlantNotFoundError
 from app.shared.storefront_notify import notify_storefront
 
@@ -89,25 +87,10 @@ class OrderNotFoundError(NotFoundError):
 
 
 class PlantUnavailableError(ConflictError):
-    """Raised when a plant is inactive or the pot size cannot be ordered."""
+    """Raised when a plant is inactive or has no VND price."""
 
     error_code = ErrorCode.PLANT_UNAVAILABLE
     message = "Plant is not available"
-
-
-class PotSizeUnavailableError(PlantUnavailableError):
-    """
-    Raised when the requested pot size is unknown or no longer on sale.
-
-    A subclass of `PlantUnavailableError`, so callers that treat every
-    unorderable line the same way keep working. The API tells the two apart:
-    an unknown pot size is a `404`, a product that cannot be sold right now is
-    a `409`.
-    """
-
-    status_code = status.HTTP_404_NOT_FOUND
-    error_code = ErrorCode.POT_SIZE_UNAVAILABLE
-    message = "Pot size is not available"
 
 
 class InsufficientStockError(ConflictError):
@@ -132,17 +115,10 @@ class OrderTotalTooLargeError(BadRequestError):
 
 
 class OrderItemInput(NamedTuple):
-    """
-    One requested line: what to buy, how many and in which pot size.
-
-    `pot_size_id` wins over the deprecated `pot_size` name. With neither, a
-    plant that has active pot sizes is sold in its first one by `sort_order`.
-    """
+    """One requested line: which plant and how many."""
 
     plant_id: uuid.UUID
     quantity: int
-    pot_size_id: uuid.UUID | None = None
-    pot_size: str | None = None
 
 
 class PricedLine(NamedTuple):
@@ -150,7 +126,6 @@ class PricedLine(NamedTuple):
 
     item: OrderItemInput
     plant: Plant | None
-    pot_size: PlantPotSize | None
     unit_price: Decimal
     line_total: Decimal
     error: PlantUnavailableError | PlantNotFoundError | None
@@ -183,7 +158,6 @@ def _plant_options() -> tuple[Any, ...]:
     return (
         noload(Plant.category),
         noload(Plant.images),
-        noload(Plant.pot_sizes),
         noload(Plant.order_items),
     )
 
@@ -197,14 +171,12 @@ def _snapshot_name(plant: Plant) -> str:
     return (plant.name_vi or "").strip() or plant.name
 
 
-def _unit_price(plant: Plant, pot_size: PlantPotSize | None) -> Decimal:
-    """VND price for one unit, including the pot size adjustment."""
+def _unit_price(plant: Plant) -> Decimal:
+    """VND price for one unit from `plants.price_vi`."""
     if plant.price_vi is None:
         # No VND price means no price at all: never fall back to `price`.
         raise PlantUnavailableError(f"Plant '{plant.name}' is not available")
-    # A missing VND adjustment costs nothing extra.
-    adjustment = _ZERO if pot_size is None else pot_size.price_adjustment_vi or _ZERO
-    return _quantize(plant.price_vi + adjustment)
+    return _quantize(plant.price_vi)
 
 
 def shipping_fee_for(subtotal: Decimal) -> Decimal:
@@ -219,44 +191,17 @@ def amount_to_free_shipping(subtotal: Decimal) -> Decimal:
     return _quantize(FREE_SHIPPING_ABOVE - subtotal)
 
 
-def _resolve_pot_size(
-    plant: Plant,
-    item: OrderItemInput,
-    pot_sizes: Sequence[PlantPotSize],
-) -> PlantPotSize | None:
-    """Pick the requested active pot size, or the plant's default one."""
-    if item.pot_size_id is not None:
-        match = next((size for size in pot_sizes if size.id == item.pot_size_id), None)
-        if match is None:
-            raise PotSizeUnavailableError(
-                f"Pot size '{item.pot_size_id}' is not available "
-                f"for plant '{plant.name}'"
-            )
-        return match
-    if item.pot_size is not None:
-        wanted = item.pot_size.lower()
-        match = next((size for size in pot_sizes if size.name.lower() == wanted), None)
-        if match is None:
-            raise PotSizeUnavailableError(
-                f"Pot size '{item.pot_size}' is not available "
-                f"for plant '{plant.name}'"
-            )
-        return match
-    return pot_sizes[0] if pot_sizes else None
-
-
 def price_order(
     items: Sequence[OrderItemInput],
     plants: dict[uuid.UUID, Plant],
-    pot_sizes: dict[uuid.UUID, list[PlantPotSize]],
 ) -> OrderPrice:
     """
     Price every line from already-loaded catalogue rows, writing nothing.
 
-    A line that cannot be sold (unknown or inactive plant, no VND price,
-    unusable pot size) carries its error and adds nothing to the subtotal.
-    Stock is not checked here: `create_order` enforces it under row locks and
-    the quote reports it per line.
+    A line that cannot be sold (unknown or inactive plant, no VND price)
+    carries its error and adds nothing to the subtotal. Stock is not checked
+    here: `create_order` enforces it under row locks and the quote reports it
+    per line.
     """
     lines: list[PricedLine] = []
     subtotal = _ZERO
@@ -264,20 +209,19 @@ def price_order(
         plant = plants.get(item.plant_id)
         if plant is None:
             lines.append(
-                PricedLine(item, None, None, _ZERO, _ZERO, PlantNotFoundError("Plant not found"))
+                PricedLine(item, None, _ZERO, _ZERO, PlantNotFoundError("Plant not found"))
             )
             continue
         try:
             if not plant.is_active:
                 raise PlantUnavailableError(f"Plant '{plant.name}' is not available")
-            pot_size = _resolve_pot_size(plant, item, pot_sizes.get(plant.id, []))
-            unit_price = _unit_price(plant, pot_size)
+            unit_price = _unit_price(plant)
         except PlantUnavailableError as exc:
-            lines.append(PricedLine(item, plant, None, _ZERO, _ZERO, exc))
+            lines.append(PricedLine(item, plant, _ZERO, _ZERO, exc))
             continue
         line_total = _quantize(unit_price * item.quantity)
         subtotal += line_total
-        lines.append(PricedLine(item, plant, pot_size, unit_price, line_total, None))
+        lines.append(PricedLine(item, plant, unit_price, line_total, None))
 
     subtotal = _quantize(subtotal)
     has_sellable_line = any(line.available for line in lines)
@@ -324,26 +268,6 @@ async def _lock_plants(
     return {plant.id: plant for plant in result.scalars().all()}
 
 
-async def _load_pot_sizes(
-    session: AsyncSession,
-    plant_ids: set[uuid.UUID],
-) -> dict[uuid.UUID, list[PlantPotSize]]:
-    """Active pot sizes per plant, default (lowest `sort_order`) first."""
-    result = await session.execute(
-        select(PlantPotSize)
-        .where(
-            PlantPotSize.plant_id.in_(plant_ids),
-            PlantPotSize.is_active.is_(True),
-        )
-        .options(noload(PlantPotSize.plant))
-        .order_by(PlantPotSize.sort_order, PlantPotSize.name)
-    )
-    by_plant: dict[uuid.UUID, list[PlantPotSize]] = defaultdict(list)
-    for pot_size in result.scalars().all():
-        by_plant[pot_size.plant_id].append(pot_size)
-    return by_plant
-
-
 async def quote_order(
     session: AsyncSession,
     items: Sequence[OrderItemInput],
@@ -358,13 +282,11 @@ async def quote_order(
             .options(
                 selectinload(Plant.images),
                 noload(Plant.category),
-                noload(Plant.pot_sizes),
                 noload(Plant.order_items),
             )
         )
         plants = {plant.id: plant for plant in result.scalars().all()}
-    pot_sizes = await _load_pot_sizes(session, plant_ids) if plant_ids else {}
-    return price_order(items, plants, pot_sizes)
+    return price_order(items, plants)
 
 
 def _apply_filters(
@@ -464,8 +386,7 @@ async def create_order(
 
     Customer upsert, order, item snapshots and stock deduction are committed
     together, so a rejected line (unknown/inactive plant, no VND price,
-    unusable pot size, insufficient stock) leaves no partial order and no stock
-    movement behind.
+    insufficient stock) leaves no partial order and no stock movement behind.
 
     A bank-transfer order also gets its `payment_reference`: the order number
     without dashes, which the customer puts in the transfer content.
@@ -486,10 +407,9 @@ async def create_order(
         plants = await _lock_plants(session, plant_ids)
         if plant_ids - plants.keys():
             raise PlantNotFoundError("Plant not found")
-        pot_sizes = await _load_pot_sizes(session, plant_ids)
 
         # Sum per plant first: the same plant may appear on several lines
-        # (different pot sizes) and must not oversell across them.
+        # and must not oversell across them.
         requested: dict[uuid.UUID, int] = defaultdict(int)
         for item in items:
             requested[item.plant_id] += item.quantity
@@ -504,7 +424,7 @@ async def create_order(
                     f"requested {quantity}, available {plant.stock}"
                 )
 
-        priced = price_order(items, plants, pot_sizes)
+        priced = price_order(items, plants)
         for line in priced.lines:
             if line.error is not None:
                 raise line.error
@@ -541,7 +461,6 @@ async def create_order(
                     plant_name=_snapshot_name(plants[line.item.plant_id]),
                     quantity=line.item.quantity,
                     unit_price=line.unit_price,
-                    pot_size=line.pot_size.name if line.pot_size is not None else None,
                 )
                 for line in priced.lines
             ]

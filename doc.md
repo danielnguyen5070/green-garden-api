@@ -144,7 +144,7 @@ only go to the logs.
 
 | Range | `error_code` |
 |---|---|
-| Not found | `1000` generic, `1001` customer, `1002` admin, `1003` category, `1004` plant, `1005` plant image, `1006` plant pot size, `1007` order, `1008` review, `1009` notification, `1010` pot size not available for ordering |
+| Not found | `1000` generic, `1001` customer, `1002` admin, `1003` category, `1004` plant, `1005` plant image, `1007` order, `1008` review, `1009` notification |
 | Conflict | `2000` generic, `2001` admin email taken, `2002` customer phone taken, `2003` category slug taken, `2004` plant slug taken, `2005` plant SKU taken, `2006` insufficient stock, `2007` plant unavailable, `2008` duplicate resource (database constraint) |
 | Auth | `3000` unauthorized, `3001` invalid credentials, `3002` invalid/missing token, `3050` forbidden, `3051` submission rejected (bot protection) |
 | Request | `4000` bad request, `4001` validation error, `4002` self-deactivation, `4003` customer inactive, `4004` order total too large, `4005` invalid status transition, `4006` method not allowed |
@@ -821,12 +821,11 @@ There is **no** `DELETE /api/v1/plants/{id}`. Retire a plant with `PATCH /api/v1
   "is_active": true,
   "created_at": "2026-09-16T09:00:00Z",
   "updated_at": "2026-09-16T09:00:00Z",
-  "images": [],
-  "pot_sizes": []
+  "images": []
 }
 ```
 
-`PlantListItem` is the lightweight listing row: same fields **without** `description`, `description_vi`, `images` and `pot_sizes`.
+`PlantListItem` is the lightweight listing row: same fields **without** `description`, `description_vi` and `images`.
 
 #### Field rules
 
@@ -895,7 +894,7 @@ curl -b cookies.txt "http://localhost:8000/api/v1/plants?page=1&page_size=20&sea
 
 ### `GET /api/v1/plants/{plant_id}`
 
-Full detail including category, images and pot sizes (eager-loaded, no N+1).
+Full detail including category and images (eager-loaded, no N+1).
 
 **Auth:** required
 
@@ -1038,55 +1037,6 @@ An image must belong to `{plant_id}`; otherwise the request returns `404`. Delet
 curl -b cookies.txt -X POST http://localhost:8000/api/v1/plants/3fa85f64-5717-4562-b3fc-2c963f66afa6/images \
   -H "Content-Type: application/json" \
   -d '{"url":"https://cdn.example.com/monstera.jpg","type":"image","alt_text":"Monstera Deliciosa","sort_order":0}'
-```
-
----
-
-## Pot sizes API
-
-Base path: `/api/v1/plants/{plant_id}/pot-sizes`
-
-Ordered by `sort_order`, then `name`.
-
-### PlantPotSizeResponse
-
-```json
-{
-  "id": "7b1c2d3e-4f5a-6b7c-8d9e-0f1a2b3c4d5e",
-  "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "name": "Large",
-  "price_adjustment": "5.00",
-  "price_adjustment_vi": "100000.00",
-  "sort_order": 1,
-  "is_active": true,
-  "created_at": "2026-09-16T09:00:00Z",
-  "updated_at": "2026-09-16T09:00:00Z"
-}
-```
-
-| Field | Type | Rules |
-|---|---|---|
-| `name` | string | Required, trimmed, max 100 |
-| `price_adjustment` | Decimal | `>= 0`, `NUMERIC(12,2)` — enforced by DB check `ck_plant_pot_sizes_price_adjustment_non_negative` |
-| `price_adjustment_vi` | Decimal \| null | Optional, `>= 0`, `NUMERIC(12,2)` — enforced by DB check `ck_plant_pot_sizes_price_adjustment_vi_non_negative` |
-| `sort_order` | integer | `>= 0`, defaults `0` |
-| `is_active` | boolean | Defaults `true` |
-
-Each locale keeps its own adjustment, applied on top of the matching plant price. A plant at `price` 25 AUD / `price_vi` 650,000 VND with the pot size above sells for 30 AUD and 750,000 VND respectively. `PATCH` with `"price_adjustment_vi": null` clears the Vietnamese adjustment and leaves `price_adjustment` untouched.
-
-| Method | Path | Success | Errors |
-|---|---|---|---|
-| `GET` | `/api/v1/plants/{plant_id}/pot-sizes` | `200` list | `401`, `404` |
-| `POST` | `/api/v1/plants/{plant_id}/pot-sizes` | `201` | `401`, `404`, `422` |
-| `PATCH` | `/api/v1/plants/{plant_id}/pot-sizes/{size_id}` | `200` | `401`, `404`, `422` |
-| `DELETE` | `/api/v1/plants/{plant_id}/pot-sizes/{size_id}` | `204` no body | `401`, `404` |
-
-A pot size must belong to `{plant_id}`; otherwise the request returns `404`.
-
-```bash
-curl -b cookies.txt -X POST http://localhost:8000/api/v1/plants/3fa85f64-5717-4562-b3fc-2c963f66afa6/pot-sizes \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Large","price_adjustment":5,"price_adjustment_vi":100000,"sort_order":1,"is_active":true}'
 ```
 
 ---
@@ -1295,8 +1245,7 @@ List rows and the detail response share the same shape.
       "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
       "plant_name": "Monstera Deliciosa",
       "quantity": 2,
-      "unit_price": "400000.00",
-      "pot_size": "Large"
+      "unit_price": "400000.00"
     }
   ],
   "created_at": "2026-09-16T09:00:00Z",
@@ -1311,8 +1260,7 @@ List rows and the detail response share the same shape.
 | `total_amount` | Decimal (string in JSON) | Always calculated by the backend, `NUMERIC(12,2)` |
 | `shipping_address` | string | Snapshot text on the order — there is no address table |
 | `customer` | object | `id`, `name`, `phone`, `email` — eager-loaded, no N+1 |
-| `items[].unit_price` | Decimal (string in JSON) | Plant price **plus** the selected pot size adjustment at purchase time |
-| `items[].pot_size` | string \| null | Snapshot of the chosen pot size name |
+| `items[].unit_price` | Decimal (string in JSON) | `plant.price_vi` at purchase time |
 
 ---
 
@@ -1387,8 +1335,7 @@ curl -b cookies.txt http://localhost:8000/api/v1/orders/1c9d2e3f-4a5b-6c7d-8e9f-
   "items": [
     {
       "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "quantity": 2,
-      "pot_size_id": "8b1f0c2e-7a4d-4e3b-9c6a-2f5d1e0a9b7c"
+      "quantity": 2
     }
   ]
 }
@@ -1404,22 +1351,20 @@ curl -b cookies.txt http://localhost:8000/api/v1/orders/1c9d2e3f-4a5b-6c7d-8e9f-
 | `items` | array | yes | At least one line |
 | `items[].plant_id` | UUID | yes | Must exist and be active |
 | `items[].quantity` | integer | yes | `>= 1` |
-| `items[].pot_size_id` | UUID \| null | no | Active pot size of that plant. Omitted: the first active size by `sort_order`, then name |
-| `items[].pot_size` | string \| null | no | Deprecated: pot size **name**, matched case-insensitively. Used only when `pot_size_id` is absent |
 
 **Customer resolution.** The phone number decides everything: an existing phone reuses that customer (their stored `name` is kept, and `email` is only filled in when it was empty), an unknown phone creates a new customer. Duplicate customers can never be created for one phone.
 
 **Pricing.** The client never sets money — `unit_price`, `total_amount` or any other price in the request body is ignored. Admin and storefront orders share one pricing function, always in VND:
 
 ```
-unit_price      = plant.price_vi + pot_size.price_adjustment_vi
+unit_price      = plant.price_vi
 line_total      = unit_price × quantity
 subtotal_amount = sum(line_total)
 shipping_fee    = 0 if subtotal_amount > 500000 else 50000
 total_amount    = subtotal_amount + shipping_fee
 ```
 
-All arithmetic uses `Decimal` / `NUMERIC(12,2)`. The order stores `currency` (`"VND"`), `subtotal_amount`, `shipping_fee` and `total_amount`; database constraints keep `total_amount = subtotal_amount + shipping_fee`. A plant without a `price_vi` cannot be ordered. The legacy `price` / `price_adjustment` columns never price an order.
+All arithmetic uses `Decimal` / `NUMERIC(12,2)`. The order stores `currency` (`"VND"`), `subtotal_amount`, `shipping_fee` and `total_amount`; database constraints keep `total_amount = subtotal_amount + shipping_fee`. A plant without a `price_vi` cannot be ordered.
 
 **Stock and transaction.** Stock is verified and deducted inside the same transaction as the customer upsert, the order and the item snapshots, with the plant rows locked (`SELECT ... FOR UPDATE`) so concurrent checkouts cannot oversell. If any line fails, nothing is written at all: no order, no customer, no stock movement. Stock never goes negative, and quantities are summed per plant when the same plant appears on several lines.
 
@@ -1433,14 +1378,14 @@ New orders always start as `pending`.
 |---|---|
 | `400` | Inactive customer, or the total is too large to store |
 | `401` | Not authenticated |
-| `404` | `plant_id` does not exist, or the pot size is unknown/inactive |
+| `404` | `plant_id` does not exist |
 | `409` | Insufficient stock, inactive plant, or no `price_vi` |
 | `422` | Invalid body (no items, `quantity < 1`, empty shipping address, unusable phone) |
 
 ```bash
 curl -b cookies.txt -X POST http://localhost:8000/api/v1/orders \
   -H "Content-Type: application/json" \
-  -d '{"customer":{"phone":"0901234567","name":"Nguyen Van A"},"shipping_address":"123 Nguyen Trai, District 1, HCMC","items":[{"plant_id":"3fa85f64-5717-4562-b3fc-2c963f66afa6","quantity":2,"pot_size_id":"8b1f0c2e-7a4d-4e3b-9c6a-2f5d1e0a9b7c"}]}'
+  -d '{"customer":{"phone":"0901234567","name":"Nguyen Van A"},"shipping_address":"123 Nguyen Trai, District 1, HCMC","items":[{"plant_id":"3fa85f64-5717-4562-b3fc-2c963f66afa6","quantity":2}]}'
 ```
 
 ---
@@ -1497,7 +1442,7 @@ curl -b cookies.txt -X PATCH http://localhost:8000/api/v1/orders/1c9d2e3f-4a5b-6
 
 Base path: `/api/v1/overview`
 
-One authenticated request returns every statistic the admin dashboard shows. It is **read-only**: nothing is written, nothing is cached, and there is no analytics, statistics or daily-revenue table behind it — every number is aggregated in PostgreSQL from the eight existing tables (`categories`, `plants`, `customers`, `orders`, `order_items`) at request time.
+One authenticated request returns every statistic the admin dashboard shows. It is **read-only**: nothing is written, nothing is cached, and there is no analytics, statistics or daily-revenue table behind it — every number is aggregated in PostgreSQL from the existing tables (`categories`, `plants`, `customers`, `orders`, `order_items`) at request time.
 
 Two definitions decide what the numbers mean:
 
@@ -1668,11 +1613,6 @@ Each row is a complete catalogue card — copy, pricing, stock and media — so 
         "name_vi": "Cây ăn quả",
         "slug": "fruit-trees"
       },
-      "default_pot_size": {
-        "id": "8b1f0c2e-7a4d-4e3b-9c6a-2f5d1e0a9b7c",
-        "name": "Medium",
-        "price_adjustment_vi": "0.00"
-      },
       "images": [
         {
           "id": "6d0b1c9a-77f2-4c2e-8a3d-1f5b9c7e4a20",
@@ -1695,13 +1635,12 @@ Each row is a complete catalogue card — copy, pricing, stock and media — so 
 | `name` / `description` | English copy |
 | `price` | Legacy default-locale price. Never used to sell; do not display it |
 | `name_vi` / `description_vi` | Vietnamese copy, `null` when not translated |
-| `price_vi` | The VND selling price on every locale. `null` means the plant cannot be ordered |
+| `price_vi` | The VND selling price. `null` means the plant cannot be ordered |
 | `slug` | Shared by both locales |
 | `stock` | Units on hand. The detail endpoint still reports only `in_stock` |
-| `default_pot_size` | The size checkout uses when no `pot_size_id` is sent (first active by `sort_order`, then name), so a card can add it to the cart and show `price_vi + price_adjustment_vi`. `null` when the plant has no active sizes |
 | `images` | Rows from `plant_images`, ordered by `sort_order` ascending (oldest first on a tie), `[]` when the plant has no media. `type` is `image` or `video`, since both live in that table |
 
-Images and pot sizes are eager-loaded with **one** extra query each for the whole page, so the listing stays at a fixed query count (`count` + rows + categories + images + pot sizes) no matter how many plants a page holds.
+Images are eager-loaded with one extra query for the whole page, so the listing stays at a fixed query count (`count` + rows + categories + images) no matter how many plants a page holds.
 
 **Errors:** `422`
 
@@ -1727,12 +1666,11 @@ Images and pot sizes are eager-loaded with **one** extra query each for the whol
     "name_vi": "Cây ăn quả",
     "slug": "fruit-trees"
   },
-  "images": [],
-  "pot_sizes": []
+  "images": []
 }
 ```
 
-The detail response reports availability as the `in_stock` flag, while the listing returns the exact `stock` the catalogue cards display. Only **active** pot sizes are included. Images use the full `PlantImageResponse` shape here (including `plant_id` and `created_at`); the listing returns the trimmed card shape above.
+The detail response reports availability as the `in_stock` flag, while the listing returns the exact `stock` the catalogue cards display. Images use the full `PlantImageResponse` shape here (including `plant_id` and `created_at`); the listing returns the trimmed card shape above.
 
 **Errors**
 
@@ -1777,14 +1715,13 @@ Prices a cart exactly as checkout would, without creating an order, locking rows
   "items": [
     {
       "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "pot_size_id": "8b1f0c2e-7a4d-4e3b-9c6a-2f5d1e0a9b7c",
       "quantity": 2
     }
   ]
 }
 ```
 
-`items` holds 0–50 lines; `quantity` is 1–999 and `pot_size_id` is optional (the default size is used when omitted).
+`items` holds 0–50 lines; `quantity` is 1–999.
 
 **Response `200`**
 
@@ -1794,14 +1731,12 @@ Prices a cart exactly as checkout would, without creating an order, locking rows
   "lines": [
     {
       "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "pot_size_id": "8b1f0c2e-7a4d-4e3b-9c6a-2f5d1e0a9b7c",
       "quantity": 2,
       "available": true,
       "slug": "monstera-deliciosa",
       "name": "Monstera Deliciosa",
       "name_vi": "Cây Trầu Bà Nam Mỹ",
       "image_url": "https://cdn.example.com/monstera-front.jpg",
-      "pot_size_name": "Medium",
       "unit_price": "650000.00",
       "line_total": "1300000.00",
       "max_quantity": 12
@@ -1815,7 +1750,7 @@ Prices a cart exactly as checkout would, without creating an order, locking rows
 }
 ```
 
-Lines come back in request order. A line that cannot be sold — unknown or inactive plant, no `price_vi`, pot size no longer on sale — has `available: false`, a `0` `unit_price` / `line_total`, `max_quantity: 0`, and adds nothing to the totals, so the cart can flag it instead of failing. Unknown and inactive plants expose nothing beyond the requested IDs. `max_quantity` is the plant's current stock; checkout rejects a larger quantity. `amount_to_free_shipping` is the smallest whole-dong amount still needed to cross the threshold, `0` once shipping is free. An empty cart, or one with no sellable line, pays no shipping.
+Lines come back in request order. A line that cannot be sold — unknown or inactive plant, or no `price_vi` — has `available: false`, a `0` `unit_price` / `line_total`, `max_quantity: 0`, and adds nothing to the totals, so the cart can flag it instead of failing. Unknown and inactive plants expose nothing beyond the requested IDs. `max_quantity` is the plant's current stock; checkout rejects a larger quantity. `amount_to_free_shipping` is the smallest whole-dong amount still needed to cross the threshold, `0` once shipping is free. An empty cart, or one with no sellable line, pays no shipping.
 
 **Errors:** `422` (more than 50 lines, quantity outside 1–999)
 
@@ -1840,8 +1775,7 @@ The checkout form only collects a name, a phone number, the shipping address, an
   "items": [
     {
       "plant_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "quantity": 1,
-      "pot_size": "Chậu 20cm"
+      "quantity": 1
     }
   ]
 }
@@ -1853,19 +1787,19 @@ The checkout form only collects a name, a phone number, the shipping address, an
 | `customer.phone` | Required, trimmed, same validation as every other customer phone, then normalized to the canonical Vietnamese form. It is the customer identity |
 | `shipping_address` | Required, trimmed, at most 1000 characters. Stored as a snapshot on the order |
 | `note` | Optional, trimmed, at most 1000 characters |
-| `items` | 1–50 lines; `plant_id` UUID, `quantity` integer `>= 1`, `pot_size_id` optional UUID (`pot_size` name still accepted, deprecated) |
+| `items` | 1–50 lines; `plant_id` UUID, `quantity` integer `>= 1` |
 
 **VND pricing, same as the admin panel.** Checkout uses the shared pricing described under [`POST /api/v1/orders`](#post-apiv1orders):
 
 ```
 plant_name      = plant.name_vi (falling back to plant.name when empty)
-unit_price      = plant.price_vi + pot_size.price_adjustment_vi
+unit_price      = plant.price_vi
 subtotal_amount = sum(unit_price × quantity)
 shipping_fee    = 0 if subtotal_amount > 500000 else 50000
 total_amount    = subtotal_amount + shipping_fee
 ```
 
-A `NULL` `price_adjustment_vi` costs nothing extra. A plant without a `price_vi` cannot be priced at all and is rejected with `409`. A line without `pot_size_id` uses the plant's first active size (by `sort_order`, then name). All arithmetic uses `Decimal` / `NUMERIC(12,2)`.
+A plant without a `price_vi` cannot be priced at all and is rejected with `409`. All arithmetic uses `Decimal` / `NUMERIC(12,2)`.
 
 **Shipping.** The fee is stored in `orders.shipping_fee`, next to `subtotal_amount` and `total_amount`. Free shipping starts *above* 500,000 VND, so a subtotal of exactly 500,000 VND still pays the 50,000 VND fee (total 550,000 VND), while 500,001 VND ships free. The current fee and threshold are public at [`GET /api/v1/storefront/shipping-policy`](#get-apiv1storefrontshipping-policy).
 
@@ -1897,14 +1831,14 @@ A `NULL` `price_adjustment_vi` costs nothing extra. A plant without a `price_vi`
 | Status | When |
 |---|---|
 | `400` | The customer behind that phone is deactivated, or the total is too large to store |
-| `404` | `plant_id` does not exist, or the selected `pot_size` is unknown / no longer on sale |
+| `404` | `plant_id` does not exist |
 | `409` | Insufficient stock, or the plant is not on sale in the Vietnamese storefront (inactive, or no `price_vi`) |
 | `422` | Invalid body: no items, more than 50 lines, `quantity < 1`, malformed UUID or phone, blank address |
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/storefront/orders \
   -H "Content-Type: application/json" \
-  -d '{"customer":{"name":"Nguyễn Văn A","phone":"0901234567"},"shipping_address":"123 Nguyễn Huệ, Quận 1, TP.HCM","items":[{"plant_id":"<plant-uuid>","quantity":1,"pot_size":"Chậu 20cm"}]}'
+  -d '{"customer":{"name":"Nguyễn Văn A","phone":"0901234567"},"shipping_address":"123 Nguyễn Huệ, Quận 1, TP.HCM","items":[{"plant_id":"<plant-uuid>","quantity":1}]}'
 ```
 
 ---
@@ -1938,10 +1872,6 @@ curl -X POST http://localhost:8000/api/v1/storefront/orders \
 | `POST` | `/api/v1/plants/{plant_id}/images` | Access cookie | Add image URL |
 | `PATCH` | `/api/v1/plants/{plant_id}/images/{image_id}` | Access cookie | Update image |
 | `DELETE` | `/api/v1/plants/{plant_id}/images/{image_id}` | Access cookie | Delete image |
-| `GET` | `/api/v1/plants/{plant_id}/pot-sizes` | Access cookie | List pot sizes |
-| `POST` | `/api/v1/plants/{plant_id}/pot-sizes` | Access cookie | Add pot size |
-| `PATCH` | `/api/v1/plants/{plant_id}/pot-sizes/{size_id}` | Access cookie | Update pot size |
-| `DELETE` | `/api/v1/plants/{plant_id}/pot-sizes/{size_id}` | Access cookie | Delete pot size |
 | `GET` | `/api/v1/customers` | Access cookie | List customers (search, status filter) |
 | `GET` | `/api/v1/customers/{customer_id}` | Access cookie | Customer detail |
 | `POST` | `/api/v1/customers` | Access cookie | Create customer |

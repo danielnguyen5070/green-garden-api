@@ -13,19 +13,16 @@ from app.core.text import normalize_slug
 from app.features.plants.models import Plant
 from app.features.plants.schemas import (
     PlantImageResponse,
-    PlantPotSizeResponse,
     PublicPlantDetail,
     PublicPlantImage,
     PublicPlantListItem,
     PublicPlantListResponse,
     PublicPlantSearchResponse,
-    PublicPotSizeSummary,
 )
 from app.features.plants.service import (
     SearchLocale,
     SortField,
     SortOrder,
-    active_pot_sizes,
     get_plant_by_slug,
     list_plants,
     search_plants,
@@ -36,7 +33,6 @@ router = APIRouter(prefix="/storefront", tags=["storefront"])
 
 
 def _public_list_item(plant: Plant) -> PublicPlantListItem:
-    pot_sizes = active_pot_sizes(plant)
     return PublicPlantListItem(
         id=plant.id,
         name=plant.name,
@@ -51,9 +47,6 @@ def _public_list_item(plant: Plant) -> PublicPlantListItem:
         is_featured=plant.is_featured,
         category=plant.category,
         images=[PublicPlantImage.model_validate(image) for image in sorted_images(plant)],
-        default_pot_size=(
-            PublicPotSizeSummary.model_validate(pot_sizes[0]) if pot_sizes else None
-        ),
         updated_at=plant.updated_at,
     )
 
@@ -68,10 +61,9 @@ def _public_list_item(plant: Plant) -> PublicPlantListItem:
         "Vietnamese copy (`name` / `name_vi`, `description` / `description_vi`, "
         "one shared `slug`), the VND selling price `price_vi` (the legacy "
         "`price` is never charged), `stock`, `is_featured`, the category "
-        "summary, the plant's media ordered by `sort_order` ascending, and "
-        "`default_pot_size` — the pot size checkout uses when none is chosen — "
+        "summary, and the plant's media ordered by `sort_order` ascending, "
         "so the frontend never has to call the detail endpoint per card. Images "
-        "and pot sizes are loaded with one extra query each for the whole page."
+        "are loaded with one extra query for the whole page."
     ),
 )
 async def get_public_plants(
@@ -189,8 +181,5 @@ async def get_public_plant_by_slug(
         images=[
             PlantImageResponse.model_validate(image)
             for image in sorted_images(plant)
-        ],
-        pot_sizes=[
-            PlantPotSizeResponse.model_validate(size) for size in active_pot_sizes(plant)
         ],
     )
